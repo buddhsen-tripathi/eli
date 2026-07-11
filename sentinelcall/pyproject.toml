@@ -34,4 +34,4 @@ sentinel = "sentinelcall.__main__:main"
 include = ["sentinelcall*"]
 
 [tool.setuptools.package-data]
-sentinelcall = ["data/*.json", "data/*.md"]
+sentinelcall = ["data/*.json", "data/*.md", "telephony/*.html"]

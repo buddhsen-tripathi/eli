@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from xml.sax.saxutils import escape
 
 # Imported at module scope so FastAPI can resolve the `Request` annotation on
@@ -42,6 +42,8 @@ from sentinelcall.data.record import (
     load_patient_by_id,
     load_patient_by_phone,
 )
+from pathlib import Path as _Path
+
 from sentinelcall.obs import trace as _trace
 from sentinelcall.pipeline import emergency
 from sentinelcall.pipeline.emergency import EMERGENCY_SCRIPT
@@ -188,9 +190,48 @@ class CallSession:
     supervisor: Optional[Supervisor] = None
     greeted: bool = False
     ended: bool = False
+    # Live pipeline snapshot for the dashboard ribbon (latest turn only).
+    last_asr: Optional[str] = None
+    last_ger: Optional[str] = None
+    last_ger_conf: Optional[float] = None
+    last_ger_changed: bool = False
+    last_agent_line: Optional[str] = None
+    turns: int = 0
 
 
 _SESSIONS: Dict[str, CallSession] = {}
+
+
+def _load_dashboard_html() -> str:
+    try:
+        return (_Path(__file__).parent / "dashboard.html").read_text(encoding="utf-8")
+    except Exception:
+        return "<h1>SentinelCall</h1><p>Dashboard template missing.</p>"
+
+
+_DASHBOARD_HTML = _load_dashboard_html()
+
+
+def _live_call_state() -> Optional[Dict[str, Any]]:
+    """Snapshot of an in-progress call for the dashboard's live ribbon. Returns
+    the most recently active non-ended session, or None if the line is quiet."""
+    for sid, s in reversed(list(_SESSIONS.items())):
+        if s.ended:
+            continue
+        return {
+            "call_sid": sid,
+            "patient_id": s.patient.patient_id,
+            "patient_name": s.patient.preferred_name,
+            "direction": s.direction,
+            "state": s.supervisor.state.value if s.supervisor else "INBOUND_QA",
+            "turns": s.turns,
+            "asr": s.last_asr,
+            "ger": s.last_ger,
+            "ger_confidence": s.last_ger_conf,
+            "ger_changed": s.last_ger_changed,
+            "agent_line": s.last_agent_line,
+        }
+    return None
 
 
 def _abs_url(path: str) -> str:
@@ -303,6 +344,13 @@ def build_app():
             "state": session.supervisor.state.value if session.supervisor else "",
         }
         g = ger_stage.correct(hyps, ctx)
+
+        # Snapshot the live pipeline for the dashboard ribbon.
+        session.turns += 1
+        session.last_asr = hyps[0] if hyps else None
+        session.last_ger = g.repaired
+        session.last_ger_conf = g.confidence
+        session.last_ger_changed = g.changed
 
         # 4) Emergency re-screen on the REPAIRED text (in case GER surfaced it).
         emerg2 = emergency.screen(g.repaired)
@@ -420,6 +468,37 @@ def build_app():
         if not data:
             return Response(status_code=404)
         return Response(content=data, media_type="audio/wav")
+
+    # ---- Nurse triage dashboard (clinician-facing) --------------------------
+
+    @app.get("/api/triage")
+    async def api_triage():
+        from sentinelcall.telephony import dashboard_api as dash
+
+        rows = dash.triage_list()
+        return {"stats": dash.dashboard_stats(rows), "patients": rows,
+                "live": _live_call_state()}
+
+    @app.get("/api/patient/{patient_id}")
+    async def api_patient(patient_id: str):
+        from fastapi.responses import JSONResponse
+        from sentinelcall.telephony import dashboard_api as dash
+
+        d = dash.patient_detail(patient_id)
+        if not d:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return d
+
+    @app.get("/api/live")
+    async def api_live():
+        """Current in-progress call state — powers the live pipeline ribbon."""
+        return _live_call_state()
+
+    @app.get("/")
+    async def dashboard_root():
+        from fastapi.responses import HTMLResponse
+
+        return HTMLResponse(_DASHBOARD_HTML)
 
     @app.get("/health")
     async def health():

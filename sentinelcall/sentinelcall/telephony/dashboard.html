@@ -1,0 +1,406 @@
+<!-- SentinelCall — Nurse Triage Command Center. Self-contained, no external assets. -->
+<div id="app" class="sc">
+  <style>
+    /* ---- design tokens (validated status palette + clinical chrome) ---- */
+    .sc {
+      --bg: #f4f5f7; --surface: #ffffff; --surface-2: #fafbfc;
+      --ink: #0f1720; --ink-2: #52606d; --muted: #7b8794;
+      --hair: #e4e7eb; --hair-2: #eef1f4;
+      --brand: #1c6dd0; --brand-ink: #0b3d82;
+      /* status palette (fixed, never themed) */
+      --good: #0ca30c; --good-bg: #e8f6e8;
+      --warning: #b9820b; --warning-bg: #fdf3dd;
+      --serious: #c85a2e; --serious-bg: #fbe9df;
+      --critical: #d03b3b; --critical-bg: #fbe4e4;
+      --shadow: 0 1px 2px rgba(16,23,32,.06), 0 2px 8px rgba(16,23,32,.04);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink); background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-color-scheme: dark) {
+      .sc {
+        --bg: #0d0f12; --surface: #16191d; --surface-2: #1b1f24;
+        --ink: #f0f3f6; --ink-2: #b6c0cc; --muted: #7d8894;
+        --hair: #262b31; --hair-2: #1f242a;
+        --brand: #4d94e8; --brand-ink: #9cc4f2;
+        --good: #22b422; --good-bg: #12291a;
+        --warning: #e0a92e; --warning-bg: #2c2411;
+        --serious: #e5865a; --serious-bg: #2d1c12;
+        --critical: #e35b5b; --critical-bg: #2c1414;
+        --shadow: 0 1px 2px rgba(0,0,0,.4), 0 2px 10px rgba(0,0,0,.3);
+      }
+    }
+    :root[data-theme="dark"] .sc { color-scheme: dark; }
+    .sc * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ---- shell ---- */
+    .sc { min-height: 100vh; display: flex; flex-direction: column; }
+    .sc-top {
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 22px; background: var(--surface);
+      border-bottom: 1px solid var(--hair); position: sticky; top: 0; z-index: 20;
+    }
+    .sc-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -.2px; }
+    .sc-logo .dot { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg,var(--brand),#12b886); display: grid; place-items: center; color: #fff; font-size: 13px; }
+    .sc-sub { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+    .sc-top-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+    .sc-stat { text-align: right; line-height: 1.1; }
+    .sc-stat b { font-size: 19px; font-variant-numeric: tabular-nums; }
+    .sc-stat span { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+    .sc-stat.crit b { color: var(--critical); }
+    .sc-stat.watch b { color: var(--warning); }
+
+    .sc-body { flex: 1; display: grid; grid-template-columns: minmax(420px, 1.15fr) minmax(360px, 1fr); gap: 0; min-height: 0; }
+    @media (max-width: 900px) { .sc-body { grid-template-columns: 1fr; } .sc-detail { border-left: none !important; border-top: 1px solid var(--hair); } }
+
+    /* ---- live ribbon (the hero) ---- */
+    .sc-live { margin: 14px 22px 0; border: 1px solid var(--hair); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+    .sc-live.on { border-color: color-mix(in srgb, var(--brand) 45%, var(--hair)); }
+    .sc-live-hd { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--hair-2); font-size: 12.5px; font-weight: 600; }
+    .sc-live-hd .pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .sc-live.on .pulse { background: var(--critical); animation: sc-pulse 1.4s infinite; }
+    @keyframes sc-pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--critical) 50%,transparent)} 50%{opacity:.7;box-shadow:0 0 0 5px transparent} }
+    .sc-live-body { padding: 14px 16px; }
+    .sc-idle { color: var(--muted); font-size: 13px; padding: 6px 0; }
+    .sc-pipe { display: grid; grid-template-columns: 74px 1fr; gap: 6px 14px; align-items: baseline; font-size: 13px; }
+    .sc-pipe dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding-top: 3px; }
+    .sc-pipe dd { line-height: 1.4; }
+    .sc-asr { color: var(--ink-2); text-decoration: line-through; text-decoration-color: color-mix(in srgb,var(--critical) 60%,transparent); }
+    .sc-ger { font-weight: 600; }
+    .sc-ger .rec { color: var(--good); font-weight: 700; }
+    .sc-conf { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 20px; font-variant-numeric: tabular-nums; }
+    .sc-chip-state { display: inline-block; font-size: 11px; font-weight: 600; color: var(--brand-ink); background: color-mix(in srgb,var(--brand) 12%,transparent); padding: 2px 9px; border-radius: 20px; }
+
+    /* ---- triage queue ---- */
+    .sc-queue { padding: 14px 22px 24px; overflow-y: auto; }
+    .sc-qhead { display: flex; align-items: center; gap: 10px; margin: 4px 2px 10px; }
+    .sc-qhead h2 { font-size: 13px; font-weight: 700; letter-spacing: -.1px; }
+    .sc-qhead .count { color: var(--muted); font-size: 12px; font-weight: 500; }
+    .sc-filter { margin-left: auto; display: flex; gap: 4px; }
+    .sc-filter button { font: inherit; font-size: 11.5px; font-weight: 600; color: var(--ink-2); background: var(--surface); border: 1px solid var(--hair); padding: 4px 10px; border-radius: 8px; cursor: pointer; }
+    .sc-filter button.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+    .sc-row { display: grid; grid-template-columns: 4px 1fr auto; gap: 0 12px; align-items: center; background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 12px 14px 12px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .12s, transform .06s; box-shadow: var(--shadow); }
+    .sc-row:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--hair)); }
+    .sc-row.sel { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand), var(--shadow); }
+    .sc-rail { width: 4px; height: 100%; min-height: 42px; border-radius: 4px; grid-row: 1 / span 3; }
+    .t-critical .sc-rail { background: var(--critical); } .t-watch .sc-rail { background: var(--warning); }
+    .t-stable .sc-rail { background: var(--good); } .t-nocontact .sc-rail { background: var(--muted); }
+
+    .sc-rmain { min-width: 0; }
+    .sc-rname { display: flex; align-items: center; gap: 8px; }
+    .sc-rname b { font-size: 14.5px; letter-spacing: -.1px; }
+    .sc-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .3px; }
+    .t-critical .sc-badge { color: var(--critical); background: var(--critical-bg); }
+    .t-watch .sc-badge { color: var(--warning); background: var(--warning-bg); }
+    .t-stable .sc-badge { color: var(--good); background: var(--good-bg); }
+    .t-nocontact .sc-badge { color: var(--muted); background: var(--hair-2); }
+    .sc-rmeta { color: var(--ink-2); font-size: 12px; margin-top: 3px; }
+    .sc-reasons { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .sc-reason { font-size: 11px; font-weight: 500; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--hair); padding: 2px 8px; border-radius: 7px; }
+    .t-critical .sc-reason.key { color: var(--critical); border-color: color-mix(in srgb,var(--critical) 30%,var(--hair)); background: var(--critical-bg); }
+    .sc-rright { text-align: right; align-self: stretch; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; gap: 6px; }
+    .sc-day { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .sc-day b { color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+    /* sparkline */
+    .sc-spark { width: 96px; height: 30px; display: block; }
+    .sc-spark-lbl { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* ---- detail panel ---- */
+    .sc-detail { border-left: 1px solid var(--hair); background: var(--surface-2); padding: 18px 22px 28px; overflow-y: auto; }
+    .sc-empty { color: var(--muted); font-size: 13.5px; text-align: center; margin-top: 60px; line-height: 1.6; }
+    .sc-dhead { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+    .sc-dhead h1 { font-size: 20px; letter-spacing: -.3px; }
+    .sc-dhead .sc-badge { margin-top: 4px; }
+    .sc-dmeta { color: var(--ink-2); font-size: 13px; margin-bottom: 16px; }
+    .sc-card { background: var(--surface); border: 1px solid var(--hair); border-radius: 13px; padding: 15px 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .sc-card h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 11px; font-weight: 700; }
+    .sc-vitals { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .sc-vital { }
+    .sc-vital .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+    .sc-vital .k { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .sc-vital.bad .v { color: var(--critical); } .sc-vital.warn .v { color: var(--warning); } .sc-vital.ok .v { color: var(--good); }
+
+    .sc-trend { width: 100%; height: 120px; display: block; }
+    .sc-legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .sc-legend i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+    .sc-list { list-style: none; }
+    .sc-li { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair-2); font-size: 13px; }
+    .sc-li:last-child { border-bottom: none; }
+    .sc-li .when { color: var(--muted); font-size: 11.5px; white-space: nowrap; min-width: 58px; font-variant-numeric: tabular-nums; }
+    .sc-li .what { color: var(--ink-2); line-height: 1.45; }
+    .sc-li .what b { color: var(--ink); }
+    .sc-li.esc .what b { color: var(--critical); }
+
+    .sc-med { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hair-2); font-size: 12.5px; }
+    .sc-med:last-child { border-bottom: none; }
+    .sc-med .nm { font-weight: 600; }
+    .sc-med .ins { color: var(--ink-2); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+
+    .sc-actions { display: flex; gap: 8px; margin: 4px 0 16px; }
+    .sc-act { flex: 1; font: inherit; font-size: 12.5px; font-weight: 600; padding: 9px; border-radius: 10px; border: 1px solid var(--hair); background: var(--surface); color: var(--ink); cursor: pointer; }
+    .sc-act.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .sc-act.ghost:hover { border-color: var(--brand); }
+
+    .sc-safe { font-size: 11.5px; color: var(--muted); background: var(--surface-2); border: 1px dashed var(--hair); border-radius: 9px; padding: 9px 11px; margin-top: 4px; line-height: 1.5; }
+    .sc-safe b { color: var(--ink-2); }
+  </style>
+
+  <!-- top bar -->
+  <div class="sc-top">
+    <div class="sc-logo"><span class="dot">✚</span> SentinelCall <span class="sc-sub">· Post-op triage</span></div>
+    <div class="sc-top-right">
+      <div class="sc-stat crit"><b id="s-crit">–</b><span>Critical</span></div>
+      <div class="sc-stat watch"><b id="s-watch">–</b><span>Watch</span></div>
+      <div class="sc-stat"><b id="s-total">–</b><span>Patients</span></div>
+    </div>
+  </div>
+
+  <!-- live ribbon -->
+  <div id="live" class="sc-live">
+    <div class="sc-live-hd"><span class="pulse"></span><span id="live-title">No call in progress</span></div>
+    <div class="sc-live-body"><div id="live-body" class="sc-idle">The line is quiet. When a patient is on a call, the live speech-recovery pipeline appears here.</div></div>
+  </div>
+
+  <div class="sc-body">
+    <!-- triage queue -->
+    <div class="sc-queue">
+      <div class="sc-qhead">
+        <h2>Triage queue</h2><span class="count" id="q-count"></span>
+        <div class="sc-filter">
+          <button data-f="review" class="active">Needs review</button>
+          <button data-f="all">All</button>
+        </div>
+      </div>
+      <div id="queue"></div>
+    </div>
+    <!-- detail -->
+    <div class="sc-detail" id="detail">
+      <div class="sc-empty">Select a patient to see their recovery trend,<br>latest check-in, and discharge record.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var API = { triage: "/api/triage", patient: function(id){ return "/api/patient/" + id; } };
+  var state = { rows: [], stats: null, live: null, sel: null, filter: "review" };
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function tierLabel(t){ return {critical:"Critical",watch:"Watch",stable:"Stable",nocontact:"No contact"}[t]||t; }
+  function tierIcon(t){ return {critical:"⚠",watch:"▲",stable:"✓",nocontact:"○"}[t]||"•"; }
+
+  // ---- sparkline: pain trend with threshold band ----
+  function spark(vals, w, h){
+    vals = (vals||[]).filter(function(v){ return typeof v === "number"; });
+    if(vals.length < 2) return '<svg class="sc-spark" viewBox="0 0 '+w+' '+h+'"></svg>';
+    var max = 10, min = 0, pad = 3;
+    var xs = function(i){ return pad + i*(w-2*pad)/(vals.length-1); };
+    var ys = function(v){ return pad + (1-(v-min)/(max-min))*(h-2*pad); };
+    var d = vals.map(function(v,i){ return (i?"L":"M")+xs(i).toFixed(1)+" "+ys(v).toFixed(1); }).join(" ");
+    var last = vals[vals.length-1];
+    var col = last>=8 ? "var(--critical)" : last>=6 ? "var(--warning)" : "var(--good)";
+    // threshold band at 6..10 (watch zone)
+    var band = '<rect x="0" y="'+ys(10).toFixed(1)+'" width="'+w+'" height="'+(ys(6)-ys(10)).toFixed(1)+'" fill="var(--warning)" opacity="0.08"/>';
+    return '<svg class="sc-spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none">'
+      + band
+      + '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+      + '<circle cx="'+xs(vals.length-1).toFixed(1)+'" cy="'+ys(last).toFixed(1)+'" r="2.6" fill="'+col+'"/></svg>';
+  }
+
+  function confColor(c){
+    if(c==null) return "var(--muted)";
+    return c>=0.75 ? "var(--good)" : c>=0.5 ? "var(--warning)" : "var(--critical)";
+  }
+  function confBg(c){
+    if(c==null) return "var(--hair-2)";
+    return c>=0.75 ? "var(--good-bg)" : c>=0.5 ? "var(--warning-bg)" : "var(--critical-bg)";
+  }
+
+  // ---- live ribbon ----
+  function renderLive(live){
+    var el = document.getElementById("live");
+    var title = document.getElementById("live-title");
+    var body = document.getElementById("live-body");
+    if(!live){
+      el.className = "sc-live"; title.textContent = "No call in progress";
+      body.className = "sc-idle";
+      body.textContent = "The line is quiet. When a patient is on a call, the live speech-recovery pipeline appears here.";
+      return;
+    }
+    el.className = "sc-live on";
+    title.innerHTML = '● LIVE — ' + esc(live.patient_name) + ' <span style="color:var(--muted);font-weight:500">('
+      + esc(live.direction) + ', turn ' + (live.turns||0) + ')</span>';
+    body.className = "";
+    var conf = live.ger_confidence;
+    var html = '<dl class="sc-pipe">';
+    if(live.asr){
+      html += '<dt>Heard</dt><dd class="sc-asr">"'+esc(live.asr)+'"</dd>';
+      html += '<dt>Recovered</dt><dd class="sc-ger">'
+        + (live.ger_changed?'<span class="rec">✓ </span>':'') + '"'+esc(live.ger||live.asr)+'"'
+        + (conf!=null?'<span class="sc-conf" style="color:'+confColor(conf)+';background:'+confBg(conf)+'">'+Math.round(conf*100)+'%</span>':'')
+        + '</dd>';
+    } else {
+      html += '<dt>Status</dt><dd style="color:var(--muted)">Greeting the patient…</dd>';
+    }
+    html += '<dt>Stage</dt><dd><span class="sc-chip-state">'+esc((live.state||"").replace(/^S\d_/,"").replace(/_/g," "))+'</span></dd>';
+    html += '</dl>';
+    body.innerHTML = html;
+  }
+
+  // ---- queue ----
+  function reasonChips(r){
+    return (r.reasons||[]).map(function(x){
+      var key = r.tier==="critical" && /infection|fever|clot|bleed|wound|fall|breath|chest/i.test(x);
+      return '<span class="sc-reason'+(key?" key":"")+'">'+esc(x)+'</span>';
+    }).join("");
+  }
+  function renderQueue(){
+    var rows = state.rows.slice();
+    if(state.filter==="review") rows = rows.filter(function(r){ return r.tier==="critical"||r.tier==="watch"||r.tier==="nocontact"; });
+    var box = document.getElementById("queue");
+    document.getElementById("q-count").textContent = rows.length + (state.filter==="review"?" need review":" total");
+    if(!rows.length){ box.innerHTML = '<div class="sc-empty" style="margin-top:24px">Nothing needs review right now.<br>Everyone\'s latest check-in is clear. ✓</div>'; return; }
+    box.innerHTML = rows.map(function(r){
+      var latest = r.latest||{};
+      return '<div class="sc-row t-'+r.tier+(state.sel===r.patient_id?" sel":"")+'" data-id="'+r.patient_id+'">'
+        + '<div class="sc-rail"></div>'
+        + '<div class="sc-rmain">'
+          + '<div class="sc-rname"><b>'+esc(r.preferred_name)+'</b> <span class="sc-badge">'+tierIcon(r.tier)+' '+tierLabel(r.tier)+'</span></div>'
+          + '<div class="sc-rmeta">'+esc(r.surgery)+' · '+esc(r.surgeon)+'</div>'
+          + '<div class="sc-reasons">'+reasonChips(r)+'</div>'
+        + '</div>'
+        + '<div class="sc-rright">'
+          + '<div class="sc-day">Day <b>'+(r.post_op_day==null?"–":r.post_op_day)+'</b></div>'
+          + spark(r.pain_trend, 96, 30)
+          + '<div class="sc-spark-lbl">pain trend</div>'
+        + '</div>'
+      + '</div>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".sc-row"), function(el){
+      el.addEventListener("click", function(){ select(el.getAttribute("data-id")); });
+    });
+  }
+
+  // ---- detail ----
+  function vital(label, val, cls){
+    return '<div class="sc-vital '+(cls||"")+'"><div class="v">'+esc(val)+'</div><div class="k">'+esc(label)+'</div></div>';
+  }
+  function trendChart(hist){
+    var vals = hist.map(function(h){ return h.pain; }).filter(function(v){ return typeof v==="number"; });
+    if(vals.length<2) return '<div style="color:var(--muted);font-size:12.5px">Not enough check-ins yet to trend.</div>';
+    var w=320,h=120,pad=22;
+    var xs=function(i){return pad+i*(w-pad-8)/(vals.length-1);};
+    var ys=function(v){return 8+(1-v/10)*(h-8-pad);};
+    var d=vals.map(function(v,i){return (i?"L":"M")+xs(i).toFixed(1)+" "+ys(v).toFixed(1);}).join(" ");
+    var band='<rect x="'+pad+'" y="'+ys(10).toFixed(1)+'" width="'+(w-pad-8)+'" height="'+(ys(6)-ys(10)).toFixed(1)+'" fill="var(--warning)" opacity="0.10"/>';
+    var thr='<line x1="'+pad+'" y1="'+ys(8).toFixed(1)+'" x2="'+(w-8)+'" y2="'+ys(8).toFixed(1)+'" stroke="var(--critical)" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>';
+    var pts=vals.map(function(v,i){var c=v>=8?"var(--critical)":v>=6?"var(--warning)":"var(--good)";return '<circle cx="'+xs(i).toFixed(1)+'" cy="'+ys(v).toFixed(1)+'" r="3" fill="'+c+'"/>';}).join("");
+    var yl='';[0,5,10].forEach(function(v){yl+='<text x="4" y="'+(ys(v)+3).toFixed(1)+'" font-size="9" fill="var(--muted)">'+v+'</text>';});
+    return '<svg class="sc-trend" viewBox="0 0 '+w+' '+h+'">'+band+thr+yl
+      +'<path d="'+d+'" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'+pts+'</svg>'
+      +'<div class="sc-legend"><span><i style="background:var(--brand)"></i>pain 0–10</span><span><i style="background:var(--critical);height:0;border-top:1px dashed var(--critical)"></i>uncontrolled ≥8</span></div>';
+  }
+  function tsShort(ts){ if(!ts) return ""; var m=/(\d{4})-(\d{2})-(\d{2})/.exec(ts); return m?m[2]+"/"+m[3]:ts.slice(0,10); }
+
+  function renderDetail(d){
+    var el = document.getElementById("detail");
+    if(!d){ el.innerHTML = '<div class="sc-empty">Select a patient to see their recovery trend,<br>latest check-in, and discharge record.</div>'; return; }
+    var L = d.latest||{};
+    var pain = L.pain;
+    var painCls = pain>=8?"bad":pain>=6?"warn":pain!=null?"ok":"";
+    var meds = L.meds_adherent===false?"Missed":L.meds_adherent===true?"On track":"—";
+    var wound = (L.wound_status||"—").replace(/_/g," ");
+    var hist = (d.history||[]);
+    var html = ''
+      + '<div class="sc-dhead"><div><h1>'+esc(d.preferred_name)+'</h1></div>'
+        + '<span class="sc-badge t-'+d.tier+'-inline" style="color:var(--'+({critical:"critical",watch:"warning",stable:"good",nocontact:"muted"}[d.tier])+');background:var(--'+({critical:"critical",watch:"warning",stable:"good",nocontact:"muted"}[d.tier])+'-bg,var(--hair-2))">'+tierIcon(d.tier)+' '+tierLabel(d.tier)+'</span>'
+      + '</div>'
+      + '<div class="sc-dmeta">'+esc(d.name)+' · '+esc(d.age)+' yo · '+esc(d.surgery)+' · <b>Day '+d.post_op_day+'</b> · '+esc(d.surgeon)+'</div>'
+      + '<div class="sc-actions">'
+        + '<button class="sc-act primary">Call now</button>'
+        + '<button class="sc-act ghost">Message nurse</button>'
+        + '<button class="sc-act ghost">Mark reviewed</button>'
+      + '</div>';
+    // latest check-in vitals
+    html += '<div class="sc-card"><h3>Latest check-in'+(L.ts?' · '+tsShort(L.ts):'')+'</h3><div class="sc-vitals">'
+      + vital("Pain", pain==null?"—":pain+"/10", painCls)
+      + vital("Meds", meds, L.meds_adherent===false?"warn":L.meds_adherent?"ok":"")
+      + vital("Wound", wound, L.wound_status==="red_flag"?"bad":L.wound_status==="mild_concern"?"warn":L.wound_status==="normal"?"ok":"")
+      + vital("Fever", L.fever?"Yes":"No", L.fever?"bad":"ok")
+      + vital("Fall", L.fall?"Yes":"No", L.fall?"bad":"ok")
+      + vital("Sleep", (L.sleep||"—"), L.sleep==="poor"?"warn":"")
+      + '</div>'
+      + (L.notes?'<div style="margin-top:12px;font-size:12.5px;color:var(--ink-2);line-height:1.5;border-top:1px solid var(--hair-2);padding-top:10px"><b style="color:var(--muted);font-size:11px">Patient said:</b> "'+esc(L.notes)+'"</div>':'')
+      + '</div>';
+    // pain trend
+    html += '<div class="sc-card"><h3>Pain trend · '+hist.length+' check-ins</h3>'+trendChart(hist)+'</div>';
+    // timeline
+    html += '<div class="sc-card"><h3>Check-in history</h3><ul class="sc-list">'
+      + hist.slice().reverse().map(function(h){
+          var esc_flag = h.escalated;
+          var bits = [];
+          if(typeof h.pain==="number") bits.push("pain "+h.pain+"/10");
+          if(h.meds_adherent===false) bits.push("meds missed");
+          if(h.fever) bits.push("fever");
+          if(h.fall) bits.push("fall");
+          if(h.wound_status && h.wound_status!=="normal") bits.push("wound "+h.wound_status.replace(/_/g," "));
+          if(!bits.length) bits.push("check-in clear");
+          return '<li class="sc-li'+(esc_flag?" esc":"")+'"><span class="when">'+tsShort(h.ts)+' · d'+h.post_op_day+'</span>'
+            + '<span class="what">'+(esc_flag?'<b>⚠ Escalated to '+esc(h.escalation_channel)+'</b> — ':'')
+            + '<b>'+esc(bits[0])+'</b>'+(bits.length>1?', '+bits.slice(1).map(esc).join(", "):"")+'. '
+            + (h.direction==="inbound"?'<span style="color:var(--muted)">(patient called in)</span>':'')
+            + '</span></li>';
+        }).join("")
+      + '</ul></div>';
+    // meds (Layer 1, verbatim)
+    var pres = d.prescribed||{}; var ms = pres.medications||[];
+    if(ms.length){
+      html += '<div class="sc-card"><h3>Prescribed medications · verbatim</h3>'
+        + ms.map(function(m){ return '<div class="sc-med"><div><div class="nm">'+esc(m.name)+'</div><div class="ins">'+esc(m.verbatim_instruction)+'</div></div></div>'; }).join("")
+        + '</div>';
+    }
+    html += '<div class="sc-safe"><b>Safety:</b> SentinelCall never diagnoses or advises. It collects check-ins, reads the patient\'s own discharge record, and routes anything clinical to you. Escalation is rule-based, not model-decided.</div>';
+    el.innerHTML = html;
+    var callBtn = el.querySelector(".sc-act.primary");
+    if(callBtn) callBtn.addEventListener("click", function(){ callBtn.textContent = "Dialing "+d.preferred_name+"…"; setTimeout(function(){ callBtn.textContent="Call now"; }, 2200); });
+  }
+
+  function select(id){
+    state.sel = id;
+    renderQueue();
+    fetch(API.patient(id)).then(function(r){ return r.json(); }).then(renderDetail).catch(function(){});
+  }
+
+  function load(){
+    fetch(API.triage).then(function(r){ return r.json(); }).then(function(data){
+      state.rows = data.patients||[]; state.stats = data.stats; state.live = data.live;
+      var c = (data.stats&&data.stats.counts)||{};
+      document.getElementById("s-crit").textContent = c.critical||0;
+      document.getElementById("s-watch").textContent = c.watch||0;
+      document.getElementById("s-total").textContent = (data.stats&&data.stats.total)||0;
+      renderLive(state.live);
+      renderQueue();
+      if(!state.sel && state.rows.length) select(state.rows[0].patient_id);
+    }).catch(function(e){
+      document.getElementById("queue").innerHTML = '<div class="sc-empty">Could not load triage data.<br><span style="font-size:11px">'+esc(e)+'</span></div>';
+    });
+  }
+
+  // filter buttons
+  Array.prototype.forEach.call(document.querySelectorAll(".sc-filter button"), function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".sc-filter button").forEach(function(x){ x.classList.remove("active"); });
+      b.classList.add("active"); state.filter = b.getAttribute("data-f"); renderQueue();
+    });
+  });
+
+  load();
+  // poll live state + refresh queue every 4s (live ribbon updates during a call)
+  setInterval(function(){
+    fetch("/api/live").then(function(r){return r.json();}).then(function(l){ state.live=l; renderLive(l); }).catch(function(){});
+  }, 4000);
+})();
+</script>
