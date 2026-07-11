@@ -33,10 +33,19 @@ router = APIRouter(prefix="/call", tags=["voice"])
 
 
 async def _run_post_call(call_id: str) -> None:
-    """After hangup: analyze the transcript, then notify loved ones."""
+    """After hangup: pull the authoritative transcript, analyze, notify loved ones."""
     try:
         from app.analysis import analyze_call
+        from app.elevenlabs import sync_transcript
         from app.notify import notify_caregivers
+
+        # Pull the finalized transcript from ElevenLabs (more reliable than the
+        # real-time capture), then run analysis over whatever turns we have.
+        async with AsyncSessionLocal() as session:
+            call = await session.get(Call, call_id)
+            conv_id = call.el_conversation_id if call else None
+        if conv_id:
+            await sync_transcript(call_id, conv_id)
 
         await analyze_call(call_id)
         await notify_caregivers(call_id)
@@ -107,19 +116,25 @@ async def call_stream(twilio_ws: WebSocket):
     stream_sid: str | None = None
     call_sid: str | None = None
     call_id: str | None = None
+    el_conversation_id: str | None = None
     audio_buffer: list[str] = []
 
     el_headers = {"xi-api-key": ELEVENLABS_API_KEY}
 
     try:
+        print("[voice] Twilio WS accepted, connecting to ElevenLabs…", flush=True)
         async with websockets.connect(_elevenlabs_ws_url(), additional_headers=el_headers) as el_ws:
+            # NB: do NOT send a conversation_config_override unless the field is
+            # explicitly enabled in the agent's platform overrides — sending a
+            # disallowed field (e.g. tts.encoding) makes ElevenLabs reject the
+            # session with "Conversation initialization failed". The agent is
+            # already configured for pcm_16000 in/out, which our transcoding matches.
+            # dynamic_variables (patient context) can be added here later — they do
+            # not require override enablement.
             await el_ws.send(json.dumps({
                 "type": "conversation_initiation_client_data",
-                "conversation_config_override": {
-                    "agent": {},
-                    "tts": {"encoding": "ulaw_8000"},
-                },
             }))
+            print("[voice] sent conversation_initiation to ElevenLabs", flush=True)
 
             async def twilio_to_el():
                 nonlocal stream_sid, call_sid, call_id
@@ -147,6 +162,12 @@ async def call_stream(twilio_ws: WebSocket):
                             await session.refresh(call)
                             call_id = call.id
 
+                        print(
+                            f"[twilio] start: call_id={call_id} sid={call_sid} "
+                            f"patient_id={patient_id} direction={direction} "
+                            f"buffered_audio={len(audio_buffer)}",
+                            flush=True,
+                        )
                         for chunk in audio_buffer:
                             await _send_audio(twilio_ws, stream_sid, chunk)
                         audio_buffer.clear()
@@ -160,14 +181,27 @@ async def call_stream(twilio_ws: WebSocket):
                         }))
 
                     elif event == "stop":
+                        print(f"[twilio] stop: call_id={call_id}", flush=True)
                         break
 
             async def el_to_twilio():
+                nonlocal el_conversation_id
+                audio_chunks = 0
+
                 async for raw in el_ws:
                     msg = json.loads(raw)
                     msg_type = msg.get("type")
 
-                    if msg_type == "ping":
+                    if msg_type == "conversation_initiation_metadata":
+                        meta = msg.get("conversation_initiation_metadata_event", {})
+                        el_conversation_id = meta.get("conversation_id")
+                        print(
+                            f"[el] init OK — conversation_id={el_conversation_id} "
+                            f"audio_format={meta.get('agent_output_audio_format')}",
+                            flush=True,
+                        )
+
+                    elif msg_type == "ping":
                         event_id = msg.get("ping_event", {}).get("event_id")
                         await el_ws.send(json.dumps({"type": "pong", "event_id": event_id}))
 
@@ -175,6 +209,9 @@ async def call_stream(twilio_ws: WebSocket):
                         audio_b64 = msg.get("audio_event", {}).get("audio_base_64")
                         if not audio_b64:
                             continue
+                        audio_chunks += 1
+                        if audio_chunks == 1:
+                            print("[el] first audio chunk received — agent is speaking", flush=True)
                         if stream_sid is None:
                             audio_buffer.append(audio_b64)
                         else:
@@ -182,11 +219,13 @@ async def call_stream(twilio_ws: WebSocket):
 
                     elif msg_type == "agent_response":
                         text = msg.get("agent_response_event", {}).get("agent_response", "").strip()
+                        print(f"[el] agent: {text[:120]}", flush=True)
                         if text and call_id:
                             await _save_turn(call_id, "agent", text)
 
                     elif msg_type == "user_transcript":
                         text = msg.get("user_transcription_event", {}).get("user_transcript", "").strip()
+                        print(f"[el] patient: {text[:120]}", flush=True)
                         if text and call_id:
                             await _save_turn(call_id, "patient", text)
 
@@ -195,6 +234,13 @@ async def call_stream(twilio_ws: WebSocket):
                             "event": "clear",
                             "streamSid": stream_sid,
                         }))
+
+                    elif msg_type in ("agent_response_correction", "vad_score", "internal_tentative_agent_response"):
+                        pass  # high-frequency / internal — ignore quietly
+
+                    else:
+                        # Surface anything unexpected (errors, unknown events) verbatim.
+                        print(f"[el] event: {msg_type} :: {json.dumps(msg)[:200]}", flush=True)
 
             tasks = [
                 asyncio.create_task(twilio_to_el()),
@@ -210,18 +256,23 @@ async def call_stream(twilio_ws: WebSocket):
             await asyncio.gather(*tasks, return_exceptions=True)
 
     except WebSocketDisconnect:
-        pass
-    except websockets.exceptions.ConnectionClosed:
-        pass
+        print("[voice] Twilio WebSocket disconnected", flush=True)
+    except websockets.exceptions.ConnectionClosed as e:
+        print(f"[el] ElevenLabs closed: code={e.code} reason={e.reason!r}", flush=True)
     except Exception as e:
         print(f"[call_stream] ERROR: {type(e).__name__}: {e}", flush=True)
     finally:
+        print(
+            f"[voice] call ended: call_id={call_id} el_conversation_id={el_conversation_id}",
+            flush=True,
+        )
         if call_id:
             async with AsyncSessionLocal() as session:
                 call = await session.get(Call, call_id)
                 if call:
                     call.status = "completed"
                     call.ended_at = datetime.now(timezone.utc)
+                    call.el_conversation_id = el_conversation_id
                     await session.commit()
-            # Analyze the transcript + notify loved ones, off the request path.
+            # Pull transcript, analyze, notify — off the request path.
             asyncio.create_task(_run_post_call(call_id))
