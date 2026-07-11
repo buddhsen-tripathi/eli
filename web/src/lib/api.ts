@@ -123,6 +123,8 @@ export const api = {
   // caregivers
   addCaregiver: (patientId: string, body: CaregiverInput) =>
     post<Caregiver>(`/api/patients/${patientId}/caregivers`, body),
+  updateCaregiver: (id: string, body: Partial<CaregiverInput>) =>
+    patch<Caregiver>(`/api/caregivers/${id}`, body),
   deleteCaregiver: (id: string) => del(`/api/caregivers/${id}`),
 
   // calls
