@@ -99,9 +99,27 @@ async def _save_turn(call_id: str, role: str, text: str) -> None:
 
 @router.post("/incoming")
 async def incoming_call(request: Request) -> PlainTextResponse:
-    # patient_id is present for outbound check-ins (see app/outbound.py); absent
-    # for a patient calling in, in which case the call is left unlinked.
+    # patient_id is present for outbound check-ins (see app/outbound.py). For an
+    # inbound call, identify the patient by the caller's phone number so the agent
+    # still gets their EHR context (and can answer "which is my red pill?").
     patient_id = request.query_params.get("patient_id")
+    if not patient_id:
+        form = await request.form()
+        from_number = form.get("From")
+        if from_number:
+            from sqlalchemy import select
+
+            from app.db_models import Patient
+
+            async with AsyncSessionLocal() as session:
+                res = await session.execute(select(Patient).where(Patient.phone == from_number))
+                patient = res.scalar_one_or_none()
+            if patient:
+                patient_id = patient.id
+                print(f"[voice] inbound caller {from_number} matched patient {patient_id}", flush=True)
+            else:
+                print(f"[voice] inbound caller {from_number} not recognized", flush=True)
+
     base_url = os.environ["PUBLIC_BASE_URL"].rstrip("/")
     ws_base = base_url.replace("https://", "wss://").replace("http://", "ws://")
     return PlainTextResponse(
@@ -116,63 +134,83 @@ async def call_stream(twilio_ws: WebSocket):
     stream_sid: str | None = None
     call_sid: str | None = None
     call_id: str | None = None
+    patient_id: str | None = None
+    direction: str = "inbound"
     el_conversation_id: str | None = None
-    audio_buffer: list[str] = []
+    pre_start_media: list[str] = []  # Twilio media (mu-law b64) arriving before 'start'
+
+    print("[voice] Twilio WS accepted", flush=True)
+
+    # Phase 1: wait for Twilio's 'start' so we know which patient this is BEFORE
+    # opening ElevenLabs — the agent needs the EHR as dynamic variables at init.
+    try:
+        async for raw in twilio_ws.iter_text():
+            msg = json.loads(raw)
+            event = msg.get("event")
+            if event == "start":
+                stream_sid = msg["start"]["streamSid"]
+                call_sid = msg["start"].get("callSid", stream_sid)
+                params = msg["start"].get("customParameters", {})
+                patient_id = params.get("patient_id")
+                direction = "outbound" if patient_id else "inbound"
+                break
+            elif event == "media":
+                pre_start_media.append(msg["media"]["payload"])
+            elif event == "stop":
+                print("[voice] Twilio stopped before start — nothing to bridge", flush=True)
+                return
+    except WebSocketDisconnect:
+        print("[voice] Twilio disconnected before start", flush=True)
+        return
+
+    # Create the Call row, then build the agent's dynamic variables from the EHR.
+    async with AsyncSessionLocal() as session:
+        call = Call(
+            call_sid=call_sid,
+            patient_id=patient_id,
+            direction=direction,
+            status="in_progress",
+        )
+        session.add(call)
+        await session.commit()
+        await session.refresh(call)
+        call_id = call.id
+
+    from app.ehr_context import build_dynamic_variables
+
+    dynamic_variables = await build_dynamic_variables(patient_id)
+    print(
+        f"[twilio] start: call_id={call_id} sid={call_sid} patient_id={patient_id} "
+        f"direction={direction} agent_name={dynamic_variables['patient_name']!r} "
+        f"recovery_day={dynamic_variables['recovery_day']!r}",
+        flush=True,
+    )
 
     el_headers = {"xi-api-key": ELEVENLABS_API_KEY}
 
     try:
-        print("[voice] Twilio WS accepted, connecting to ElevenLabs…", flush=True)
         async with websockets.connect(_elevenlabs_ws_url(), additional_headers=el_headers) as el_ws:
-            # NB: do NOT send a conversation_config_override unless the field is
-            # explicitly enabled in the agent's platform overrides — sending a
-            # disallowed field (e.g. tts.encoding) makes ElevenLabs reject the
-            # session with "Conversation initialization failed". The agent is
-            # already configured for pcm_16000 in/out, which our transcoding matches.
-            # dynamic_variables (patient context) can be added here later — they do
-            # not require override enablement.
+            # Inject the EHR as dynamic variables so the agent greets the patient by
+            # name and can reason over their meds / recovery day. No config override —
+            # that field isn't enabled on the agent and would fail init.
             await el_ws.send(json.dumps({
                 "type": "conversation_initiation_client_data",
+                "dynamic_variables": dynamic_variables,
             }))
-            print("[voice] sent conversation_initiation to ElevenLabs", flush=True)
+            print("[voice] sent conversation_initiation with EHR dynamic variables", flush=True)
+
+            # Forward any media that arrived before 'start'.
+            for payload in pre_start_media:
+                pcm8k = audioop.ulaw2lin(base64.b64decode(payload), 2)
+                pcm16k, _ = audioop.ratecv(pcm8k, 2, 1, 8000, 16000, None)
+                await el_ws.send(json.dumps({"user_audio_chunk": base64.b64encode(pcm16k).decode()}))
 
             async def twilio_to_el():
-                nonlocal stream_sid, call_sid, call_id
-
                 async for raw in twilio_ws.iter_text():
                     msg = json.loads(raw)
                     event = msg.get("event")
 
-                    if event == "start":
-                        stream_sid = msg["start"]["streamSid"]
-                        call_sid = msg["start"].get("callSid", stream_sid)
-                        params = msg["start"].get("customParameters", {})
-                        patient_id = params.get("patient_id")
-                        direction = "outbound" if patient_id else "inbound"
-
-                        async with AsyncSessionLocal() as session:
-                            call = Call(
-                                call_sid=call_sid,
-                                patient_id=patient_id,
-                                direction=direction,
-                                status="in_progress",
-                            )
-                            session.add(call)
-                            await session.commit()
-                            await session.refresh(call)
-                            call_id = call.id
-
-                        print(
-                            f"[twilio] start: call_id={call_id} sid={call_sid} "
-                            f"patient_id={patient_id} direction={direction} "
-                            f"buffered_audio={len(audio_buffer)}",
-                            flush=True,
-                        )
-                        for chunk in audio_buffer:
-                            await _send_audio(twilio_ws, stream_sid, chunk)
-                        audio_buffer.clear()
-
-                    elif event == "media":
+                    if event == "media":
                         ulaw = base64.b64decode(msg["media"]["payload"])
                         pcm8k = audioop.ulaw2lin(ulaw, 2)
                         pcm16k, _ = audioop.ratecv(pcm8k, 2, 1, 8000, 16000, None)
@@ -212,10 +250,7 @@ async def call_stream(twilio_ws: WebSocket):
                         audio_chunks += 1
                         if audio_chunks == 1:
                             print("[el] first audio chunk received — agent is speaking", flush=True)
-                        if stream_sid is None:
-                            audio_buffer.append(audio_b64)
-                        else:
-                            await _send_audio(twilio_ws, stream_sid, audio_b64)
+                        await _send_audio(twilio_ws, stream_sid, audio_b64)
 
                     elif msg_type == "agent_response":
                         text = msg.get("agent_response_event", {}).get("agent_response", "").strip()

@@ -1,14 +1,15 @@
-from datetime import date
+import os
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.caregivers import _serialize as _serialize_caregiver
 from app.database import get_db
-from app.db_models import Patient
+from app.db_models import Caregiver, Medication, Patient
 from app.medications import serialize as _serialize_medication
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
@@ -52,6 +53,63 @@ def _serialize(p: Patient) -> dict:
 async def list_patients(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Patient).order_by(Patient.created_at.desc()))
     return [_serialize(p) for p in result.scalars().all()]
+
+
+DEMO_NAME = "Margaret Chen"
+
+
+@router.post("/demo-seed", status_code=201)
+async def seed_demo_patient(db: AsyncSession = Depends(get_db)):
+    """Create (or refresh) a rich demo patient using DESTINATION_PHONE_NUMBER.
+
+    The phone is read from the server env so the number never travels over the
+    wire. Idempotent — replaces any prior demo record. Built for the live demo:
+    the med appearances drive the "which is my red pill?" scenario.
+    """
+    phone = os.environ.get("DESTINATION_PHONE_NUMBER")
+    if not phone:
+        raise HTTPException(status_code=400, detail="DESTINATION_PHONE_NUMBER not set")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+
+    # Remove any prior demo patient (cascade clears its meds + caregivers).
+    old = await db.execute(select(Patient.id).where(Patient.name == DEMO_NAME))
+    old_ids = [row[0] for row in old]
+    if old_ids:
+        await db.execute(delete(Patient).where(Patient.id.in_(old_ids)))
+        await db.commit()
+
+    patient = Patient(
+        name=DEMO_NAME,
+        phone=phone,
+        procedure="right total hip replacement",
+        surgery_date=date.today() - timedelta(days=3),
+        clinician="Dr. Alvarez",
+        checkin_days=[1, 3, 7],
+        notes=(
+            "• Discharged 3 days ago after right total hip replacement.\n"
+            "• Lives alone; daughter Sarah visits on weekends.\n"
+            "• Watch for infection at the incision (redness, warmth, drainage) and fall risk.\n"
+            "• History of mild, well-controlled hypertension.\n"
+            "• Independent with a walker at discharge."
+        ),
+    )
+    patient.medications = [
+        Medication(name="Amoxicillin", appearance="small red capsule", dosage="500mg, 1 capsule",
+                   schedule="8:00 AM and 8:00 PM", instructions="with food", purpose="prevents infection"),
+        Medication(name="Oxycodone", appearance="white oval tablet", dosage="5mg, 1 tablet",
+                   schedule="every 6 hours as needed", instructions="for pain, take with food", purpose="pain relief"),
+        Medication(name="Aspirin", appearance="small round white pill", dosage="81mg, 1 tablet",
+                   schedule="9:00 AM", instructions="with water", purpose="blood thinner to prevent clots"),
+    ]
+    patient.caregivers = [
+        Caregiver(name="Sarah Chen", relationship_to_patient="daughter", phone=phone,
+                  notify_when="always", is_primary=True),
+    ]
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+    return {"id": patient.id, "name": patient.name, "phone": patient.phone, "status": "seeded"}
 
 
 @router.post("", status_code=201)
