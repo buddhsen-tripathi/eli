@@ -5,29 +5,29 @@
    sharp triage semantics. Light + dark. */
 
 :root {
-  --paper: #f6f3ec; /* warm paper background */
-  --card: #fffdf9; /* surface */
-  --line: #e6e0d4; /* hairline border */
-  --ink: #211d17; /* primary text, warm near-black */
-  --muted: #746c5e; /* secondary text */
-  --faint: #a89f8e; /* tertiary / placeholders */
-  --sage: #3f6b5f; /* primary — calm clinical teal-green */
-  --sage-ink: #2b4a41; /* darker sage for text on tint */
-  --sage-soft: #e7efe9; /* sage tint fill */
-  --shadow: 26 22 15;
+  --paper: #eef1f7; /* cool light canvas */
+  --card: #ffffff; /* crisp surface */
+  --line: #dfe4ee; /* cool hairline border */
+  --ink: #0c1220; /* deep cool near-black */
+  --muted: #545e72; /* secondary text (slate) */
+  --faint: #98a1b4; /* tertiary / placeholders */
+  --sage: #2b54e6; /* primary — confident cobalt */
+  --sage-ink: #1c3bad; /* darker cobalt for text on tint */
+  --sage-soft: #e6ecfd; /* cobalt tint fill */
+  --shadow: 15 23 42;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #16140f;
-    --card: #1e1b15;
-    --line: #322d24;
-    --ink: #f1ece1;
-    --muted: #a79f8f;
-    --faint: #6f6757;
-    --sage: #8fc4b2;
-    --sage-ink: #b9dccf;
-    --sage-soft: #1e2b26;
+    --paper: #080b13; /* deep cool near-black */
+    --card: #111726; /* raised surface */
+    --line: #20293b; /* cool border */
+    --ink: #eaeef7;
+    --muted: #929cb2;
+    --faint: #586074;
+    --sage: #6d92ff; /* lighter cobalt for dark */
+    --sage-ink: #a8c0ff;
+    --sage-soft: #15203a;
     --shadow: 0 0 0;
   }
 }
@@ -49,10 +49,10 @@
 
 body {
   background-color: var(--paper);
-  /* faint warm atmosphere: two soft light sources + a paper grain */
+  /* cool atmosphere: a soft cobalt light source top-right, subtle depth bottom-left */
   background-image:
-    radial-gradient(60rem 60rem at 100% -10%, color-mix(in oklab, var(--sage) 8%, transparent), transparent 60%),
-    radial-gradient(50rem 50rem at -10% 110%, color-mix(in oklab, var(--sage) 6%, transparent), transparent 55%);
+    radial-gradient(55rem 55rem at 100% -15%, color-mix(in oklab, var(--sage) 12%, transparent), transparent 58%),
+    radial-gradient(45rem 45rem at -10% 115%, color-mix(in oklab, var(--sage) 7%, transparent), transparent 55%);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;

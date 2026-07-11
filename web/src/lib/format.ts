@@ -39,24 +39,24 @@ export const TRIAGE_META: Record<
   { label: string; dot: string; text: string; bg: string; border: string }
 > = {
   ok: {
-    label: "OK",
+    label: "Stable",
     dot: "bg-emerald-500",
     text: "text-emerald-700 dark:text-emerald-300",
-    bg: "bg-emerald-50 dark:bg-emerald-950/40",
-    border: "border-emerald-200 dark:border-emerald-900",
+    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+    border: "border-emerald-200 dark:border-emerald-500/25",
   },
   monitor: {
     label: "Monitor",
     dot: "bg-amber-500",
     text: "text-amber-700 dark:text-amber-300",
-    bg: "bg-amber-50 dark:bg-amber-950/40",
-    border: "border-amber-200 dark:border-amber-900",
+    bg: "bg-amber-50 dark:bg-amber-500/10",
+    border: "border-amber-200 dark:border-amber-500/25",
   },
   urgent: {
     label: "Urgent",
-    dot: "bg-red-500",
-    text: "text-red-700 dark:text-red-300",
-    bg: "bg-red-50 dark:bg-red-950/40",
-    border: "border-red-200 dark:border-red-900",
+    dot: "bg-rose-500",
+    text: "text-rose-700 dark:text-rose-300",
+    bg: "bg-rose-50 dark:bg-rose-500/10",
+    border: "border-rose-200 dark:border-rose-500/25",
   },
 };
