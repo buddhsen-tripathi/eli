@@ -53,26 +53,103 @@ from sentinelcall.telephony import twilio_sms
 # ---------------------------------------------------------------------------
 
 # Twilio Amazon Polly neural voice; slow prosody via SSML <prosody rate>.
+# This is the FALLBACK voice — used when Cartesia synth is unavailable/failing.
 _VOICE = "Polly.Joanna-Neural"
 
 
-def _say(text: str) -> str:
-    # Slow the cadence for age-related hearing decline (design choice).
+def _say_polly(text: str) -> str:
+    """Fallback: Twilio-native speech (Polly), slowed for elderly hearing."""
     safe = escape(text)
-    return (
-        f'<Say voice="{_VOICE}"><prosody rate="85%">{safe}</prosody></Say>'
-    )
+    return f'<Say voice="{_VOICE}"><prosody rate="85%">{safe}</prosody></Say>'
+
+
+# ---- Cartesia audio hosting (the real voice on the phone) ------------------
+#
+# Twilio <Play> needs a fetchable audio URL. We synthesize each spoken line with
+# Cartesia, downsample to 8 kHz mono WAV (telephone band — smaller + universally
+# playable by Twilio), cache it in memory by content hash, and serve it at
+# /audio/<hash>.wav. If Cartesia (or PUBLIC_BASE_URL) is unavailable, callers
+# fall back to _say_polly so the call NEVER breaks.
+
+_AUDIO_CACHE: Dict[str, bytes] = {}
+_AUDIO_CACHE_MAX = 200  # bounded; oldest evicted
+
+
+def _to_twilio_wav(wav_bytes: bytes) -> Optional[bytes]:
+    """Convert Cartesia's 24 kHz PCM WAV to 8 kHz mono 16-bit WAV for Twilio.
+    Returns None on any failure (caller then falls back to Polly)."""
+    try:
+        import audioop
+        import io
+        import wave
+
+        with wave.open(io.BytesIO(wav_bytes), "rb") as w:
+            n_ch, width, rate = w.getnchannels(), w.getsampwidth(), w.getframerate()
+            frames = w.readframes(w.getnframes())
+        if n_ch == 2:
+            frames = audioop.tomono(frames, width, 0.5, 0.5)
+        if width != 2:
+            frames = audioop.lin2lin(frames, width, 2)
+            width = 2
+        if rate != 8000:
+            frames, _ = audioop.ratecv(frames, width, 1, rate, 8000, None)
+        out = io.BytesIO()
+        with wave.open(out, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(8000)
+            w.writeframes(frames)
+        return out.getvalue()
+    except Exception as exc:  # pragma: no cover - defensive
+        _trace.event("audio.convert_error", error=repr(exc))
+        return None
+
+
+async def _cartesia_play_url(text: str) -> Optional[str]:
+    """Synthesize `text` with Cartesia, cache the Twilio-ready WAV, and return the
+    absolute /audio/<hash>.wav URL. None if synth/host isn't possible -> Polly."""
+    base = (get_settings().public_base_url or "").rstrip("/")
+    if not base:
+        return None  # no public URL to host audio at -> can't <Play>
+    from sentinelcall.pipeline.tts import tts
+
+    try:
+        raw = await tts().synthesize(text)
+    except Exception as exc:
+        _trace.event("audio.synth_error", error=repr(exc))
+        return None
+    if not raw:
+        return None
+    wav = _to_twilio_wav(raw)
+    if not wav:
+        return None
+    import hashlib
+
+    key = hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+    if key not in _AUDIO_CACHE:
+        if len(_AUDIO_CACHE) >= _AUDIO_CACHE_MAX:
+            _AUDIO_CACHE.pop(next(iter(_AUDIO_CACHE)))
+        _AUDIO_CACHE[key] = wav
+    return f"{base}/audio/{key}.wav"
+
+
+async def _say(text: str) -> str:
+    """Speak a line: Cartesia <Play> if we can synth+host it, else Polly <Say>."""
+    url = await _cartesia_play_url(text)
+    if url:
+        return f"<Play>{escape(url)}</Play>"
+    return _say_polly(text)
 
 
 def _twiml(*inner: str) -> str:
     return '<?xml version="1.0" encoding="UTF-8"?><Response>' + "".join(inner) + "</Response>"
 
 
-def _record_turn(action_url: str, *, prompt: Optional[str] = None) -> str:
+async def _record_turn(action_url: str, *, prompt: Optional[str] = None) -> str:
     """Speak an optional prompt, then record the patient's reply (their turn)."""
     parts = []
     if prompt:
-        parts.append(_say(prompt))
+        parts.append(await _say(prompt))
     parts.append(
         f'<Record action="{action_url}" method="POST" maxLength="8" '
         f'timeout="3" playBeep="false" trim="trim-silence" />'
@@ -82,8 +159,8 @@ def _record_turn(action_url: str, *, prompt: Optional[str] = None) -> str:
     return _twiml(*parts)
 
 
-def _hangup(text: str) -> str:
-    return _twiml(_say(text), "<Hangup/>")
+async def _hangup(text: str) -> str:
+    return _twiml(await _say(text), "<Hangup/>")
 
 
 # ---------------------------------------------------------------------------
@@ -196,15 +273,15 @@ def build_app():
                     _trace.CYAN)
 
         if not hyps:
-            return _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
-                                prompt="I'm sorry, I didn't catch that. Could you say it again?")
+            return await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
+                                      prompt="I'm sorry, I didn't catch that. Could you say it again?")
 
         # 2) Emergency screen FIRST on the RAW hypotheses (pre-LLM).
         emerg = emergency.screen_many(hyps)
         if emerg.is_emergency:
             _trace.line("EMERGENCY", f"TRIGGER: {emerg.trigger} :: {emerg.matched_text!r}", _trace.RED)
             _fire_emergency_alert(session)
-            return _hangup(EMERGENCY_SCRIPT)
+            return await _hangup(EMERGENCY_SCRIPT)
 
         # 3) GER (hero)
         ctx = {
@@ -219,7 +296,7 @@ def build_app():
         if emerg2.is_emergency:
             _trace.line("EMERGENCY", f"TRIGGER (post-GER): {emerg2.trigger}", _trace.RED)
             _fire_emergency_alert(session)
-            return _hangup(EMERGENCY_SCRIPT)
+            return await _hangup(EMERGENCY_SCRIPT)
 
         # 5) Supervisor (inbound Q&A vs outbound state machine)
         if session.direction == "inbound":
@@ -228,7 +305,7 @@ def build_app():
                 twilio_sms.escalate(patient, turn.escalation, patient_words=g.repaired)
             reply = turn.reply
             # inbound stays open for more questions
-            return _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=reply)
+            return await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=reply)
         else:
             sup = session.supervisor
             turn = sup.handle(
@@ -241,8 +318,8 @@ def build_app():
                 twilio_sms.escalate(patient, turn.escalation, patient_words=g.repaired)
             if turn.ended:
                 _finalize(session)
-                return _hangup(turn.reply)
-            return _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=turn.reply)
+                return await _hangup(turn.reply)
+            return await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=turn.reply)
 
     # ---- Outbound entrypoint (Twilio hits this when the patient answers) ----
 
@@ -254,12 +331,12 @@ def build_app():
         patient_id = params.get("patient_id", "")
         patient = load_patient_by_id(patient_id)
         if not patient:
-            return _xml(_hangup("I'm sorry, I couldn't find your record. Goodbye."))
+            return _xml(await _hangup("I'm sorry, I couldn't find your record. Goodbye."))
         sup = Supervisor(patient, direction="outbound")
         _SESSIONS[call_sid] = CallSession(patient=patient, direction="outbound", supervisor=sup,
                                           greeted=True)
         greeting = sup.greeting()
-        return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
+        return _xml(await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
 
     # ---- Inbound entrypoint (patient calls the Twilio number) ----
 
@@ -284,14 +361,18 @@ def build_app():
                 "I don't have a record for this number, but I can still help with "
                 "general recovery questions. What can I help you with today?"
             )
-            return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
-        _SESSIONS[call_sid] = CallSession(patient=patient, direction="inbound")
-        greeting = (
-            f"Hello {patient.preferred_name}, this is SentinelCall. "
-            "If this is an emergency, please hang up and call 9 1 1. "
-            "Otherwise, what can I help you with today?"
-        )
-        return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
+            return _xml(await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
+        # KNOWN patient calling in: we already have their case. Don't ask "how can
+        # I help" — drive the same structured recovery check-in as an outbound
+        # call, just opened for an inbound context. The supervisor state machine
+        # (S1..S7) handles the flow; red flags still escalate.
+        _trace.line("INBOUND", f"known patient {patient.patient_id} -> driven check-in",
+                    _trace.GREEN)
+        sup = Supervisor(patient, direction="outbound")
+        _SESSIONS[call_sid] = CallSession(patient=patient, direction="outbound",
+                                          supervisor=sup, greeted=True)
+        greeting = sup.inbound_greeting()
+        return _xml(await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
 
     # ---- Per-turn (Twilio posts the recording here) ----
 
@@ -302,19 +383,30 @@ def build_app():
         call_sid = params.get("sid") or form.get("CallSid", "sim")
         session = _SESSIONS.get(call_sid)
         if not session:
-            return _xml(_hangup("I'm sorry, this session has ended. Goodbye."))
+            return _xml(await _hangup("I'm sorry, this session has ended. Goodbye."))
 
         recording_url = form.get("RecordingUrl", "")
         if not recording_url:
             # No speech captured — gentle re-prompt.
-            return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
-                                     prompt="I didn't hear anything. Please tell me how you're doing."))
+            return _xml(await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
+                                           prompt="I didn't hear anything. Please tell me how you're doing."))
         wav = await _download_recording(recording_url)
         if not wav:
-            return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
-                                     prompt="I'm having trouble hearing you. Could you repeat that?"))
+            return _xml(await _record_turn(_abs_url(f"/voice/turn?sid={call_sid}"),
+                                           prompt="I'm having trouble hearing you. Could you repeat that?"))
         twiml = await _process_patient_audio(session, wav, call_sid)
         return _xml(twiml)
+
+    @app.get("/audio/{key}.wav")
+    async def audio(key: str):
+        """Serve a cached Cartesia-synthesized line (8 kHz mono WAV) for Twilio
+        <Play>. Keys are content hashes populated by _cartesia_play_url."""
+        from fastapi.responses import Response
+
+        data = _AUDIO_CACHE.get(key)
+        if not data:
+            return Response(status_code=404)
+        return Response(content=data, media_type="audio/wav")
 
     @app.get("/health")
     async def health():

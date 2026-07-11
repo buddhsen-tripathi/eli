@@ -32,9 +32,11 @@ from sentinelcall.obs import trace as _trace
 
 PERSONA = (
     "You are SentinelCall, a warm, patient, unhurried recovery check-in voice "
-    "for an elderly post-operative patient. You speak slowly and simply, one "
-    "idea at a time, and you are infinitely un-annoyed by repetition or "
-    "confusion. You build rapport first.\n\n"
+    "for an elderly post-operative patient. Talk like a kind human nurse on the "
+    "phone, not a form: use natural, everyday language ('okay', 'got it', 'no "
+    "rush'), acknowledge what they just said before moving on, and ask about "
+    "only ONE thing at a time. Short, gentle sentences. You are infinitely "
+    "un-annoyed by repetition or confusion.\n\n"
     "ABSOLUTE RULES (these override tone every time):\n"
     "- You are a structured-intake and routing instrument, NOT a medical "
     "advisor. You NEVER diagnose, NEVER name a condition, NEVER say whether "
@@ -101,6 +103,16 @@ class Supervisor:
     def greeting(self) -> str:
         self.state = State.GREET
         line = self._fill(STATE_PROMPTS[State.GREET])
+        v = safety_gate.check(line, append_safety_net=False)
+        return v.text if v.ok else line
+
+    def inbound_greeting(self) -> str:
+        """Opener when the KNOWN patient calls US. We already have their case, so
+        acknowledge that, mention day + surgery so it's clearly personalized, and
+        go straight into the check-in — no 'how can I help you'. Same S1 state as
+        the outbound greeting; the flow proceeds identically from here."""
+        self.state = State.GREET
+        line = self._fill(STATE_PROMPTS[State.INBOUND_GREET])
         v = safety_gate.check(line, append_safety_net=False)
         return v.text if v.ok else line
 

@@ -105,6 +105,89 @@ def _touches_safety_critical(text: str) -> bool:
     return any(term in low for term in _SAFETY_CRITICAL_TERMS)
 
 
+def _tokens(text: str) -> List[str]:
+    import re
+    return re.findall(r"[a-z]+", text.lower())
+
+
+def _phonetic_key(word: str) -> str:
+    """Very cheap phonetic reduction so 'insshun' and 'incision' collapse to the
+    same skeleton but 'cases' does not. Steps: lowercase; map c/s/z->s, k->s
+    before nothing (keep simple), ph->f; drop vowels except a leading one;
+    collapse runs of the same consonant. Good enough to anchor GER repairs."""
+    w = word.lower()
+    w = w.replace("ph", "f").replace("sh", "s").replace("ci", "si").replace("ti", "si")
+    w = w.replace("c", "s").replace("z", "s").replace("k", "s")
+    out = []
+    for i, ch in enumerate(w):
+        if ch in "aeiou":
+            if i == 0:
+                out.append(ch)
+            continue
+        if out and out[-1] == ch:
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _phonetically_near(term: str, hyp_tokens: List[str]) -> bool:
+    """Is `term` plausibly a repair of some token the ASR actually produced?
+    True if a hypothesis token shares a 4-char prefix, is within a small edit
+    distance, OR reduces to a near-identical phonetic key. This anchors
+    'insshun'->'incision' (same phonetic key) while blocking 'cases'->'incision'
+    (different key, far edit distance)."""
+    term_key = _phonetic_key(term)
+    for tok in hyp_tokens:
+        if tok == term:
+            return True
+        if min(len(tok), len(term)) >= 4 and tok[:4] == term[:4]:
+            return True
+        if _edit_distance(tok, term) <= max(1, min(len(tok), len(term)) // 3):
+            return True
+        # phonetic-skeleton match (the real anchor for garbled elderly speech)
+        tk = _phonetic_key(tok)
+        if tk and term_key and _edit_distance(tk, term_key) <= 1:
+            return True
+    return False
+
+
+def _edit_distance(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[-1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _reject_hallucinated_terms(repaired: str, hypotheses: List[str]) -> List[str]:
+    """Return the list of SAFETY-CRITICAL clinical terms the repair INTRODUCED
+    that aren't supported (present or phonetically near a token) by ANY raw
+    hypothesis. A non-empty list means GER invented a symptom -> reject the
+    repair. This is the guard against the 'cases'->'incision' hallucination."""
+    all_hyp_tokens: List[str] = []
+    for h in hypotheses:
+        all_hyp_tokens.extend(_tokens(h))
+    hyp_set = set(all_hyp_tokens)
+    invented = []
+    for term in _SAFETY_CRITICAL_TERMS:
+        if term not in repaired.lower():
+            continue
+        if term in hyp_set:
+            continue  # patient actually said it (in some hypothesis)
+        if _phonetically_near(term, all_hyp_tokens):
+            continue  # plausible phonetic repair of something they said
+        invented.append(term)  # appears ONLY in the repair, from nowhere
+    return invented
+
+
 def _make_readback(repaired: str) -> str:
     """Turn a repaired statement into a gentle read-back confirmation."""
     r = repaired.strip().rstrip(".")
@@ -157,6 +240,18 @@ def correct(
     confidence = max(0.0, min(1.0, confidence))
     # If the LLM failed entirely, don't claim confidence in the raw hypothesis.
     if not obj:
+        confidence = min(confidence, 0.4)
+
+    # HALLUCINATION GUARD: GER may pick/repair from the N-best, but it must NOT
+    # invent safety-critical symptoms that aren't in any hypothesis. If it added
+    # a clinical term from nowhere (e.g. "cases"->"incision"), reject the repair,
+    # revert to the raw top hypothesis, and drop confidence so nothing downstream
+    # treats the invented symptom as real. Uncertainty never manufactures a flag.
+    invented = _reject_hallucinated_terms(repaired, hyps)
+    if invented:
+        _trace.line("GER", f"REJECTED hallucinated term(s) {invented} -> revert to raw",
+                    _trace.RED)
+        repaired = top
         confidence = min(confidence, 0.4)
 
     changed = repaired.lower() != top.lower()

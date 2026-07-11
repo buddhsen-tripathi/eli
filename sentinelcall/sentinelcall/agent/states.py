@@ -20,6 +20,8 @@ class State(str, Enum):
     ESCALATE = "S6_ESCALATE"   # calm instruction (no dx) + SMS to nurse
     CLOSE = "S7_CLOSE"         # summarize, safety-net, next call, append fields
 
+    INBOUND_GREET = "S1_INBOUND_GREET"  # known patient called US -> personalized open
+
     # Inbound-only pseudo-state: open-ended Q&A grounded in the record.
     INBOUND_QA = "S_INBOUND_QA"
 
@@ -55,29 +57,34 @@ def next_state(current: State) -> State:
 # safe fallback if the LLM is unavailable.
 STATE_PROMPTS = {
     State.GREET: (
-        "Hello {name}, this is your recovery check-in call. You're on day "
-        "{post_op_day} after your {surgery_short}. I'll go slowly. "
-        "How are you feeling today?"
+        "Hi {name}, it's SentinelCall — your recovery check-in. It's day "
+        "{post_op_day} since your {surgery_short}, and I just want to see how "
+        "you're doing. No rush at all. How are you feeling today?"
+    ),
+    State.INBOUND_GREET: (
+        "Hi {name}, it's SentinelCall. I've got your chart right here — you're "
+        "on day {post_op_day} after your {surgery_short}. Since you've got me on "
+        "the line, let's do your quick check-in. How have you been feeling?"
     ),
     State.CHECKIN: (
-        "Thank you for telling me. On a scale of zero to ten, how would you "
-        "rate your pain right now? And how have you been sleeping and eating?"
+        "Thanks for telling me. Just one thing at a time — right now, what's "
+        "your pain like on a scale of zero to ten?"
     ),
     State.MEDS: (
-        "Let's go over your medicines. Have you been able to take them as "
-        "prescribed? Tell me if anything has been confusing."
+        "Good to know. How about your medicines — have they been easy to keep "
+        "up with, or has anything been confusing?"
     ),
     State.WOUND: (
-        "Now let's check your incision. Have you noticed any spreading redness, "
-        "any fluid or drainage, or does the skin feel warm or more painful?"
+        "Okay. Let's take a quick look at your incision. Have you noticed any "
+        "redness spreading, or any fluid or warmth around it?"
     ),
     State.SCREEN: (
-        "A couple of safety questions. Have you had any falls or near-falls "
-        "since we last spoke? And are you feeling clear-headed today?"
+        "Almost done. Since we last talked, have you had any falls or "
+        "close calls with your balance?"
     ),
     State.CLOSE: (
-        "Thank you, {name}. I've noted everything for your care team. I'll "
-        "check in with you again tomorrow. You can also call this number any "
-        "time if you have a question."
+        "That's everything I needed, {name} — thank you. I've passed your notes "
+        "to your care team, and I'll check in again soon. And remember, if "
+        "anything gets worse, call your nurse line or 9 1 1 any time."
     ),
 }
