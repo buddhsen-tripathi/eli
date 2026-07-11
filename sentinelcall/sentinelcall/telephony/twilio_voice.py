@@ -38,6 +38,7 @@ from sentinelcall.config import get_settings
 from sentinelcall.data.record import (
     Patient,
     append_call_record,
+    guest_patient,
     load_patient_by_id,
     load_patient_by_phone,
 )
@@ -269,11 +270,21 @@ def build_app():
         from_number = form.get("From", "")
         patient = load_patient_by_phone(from_number)
         if not patient:
-            # Unknown caller: still emergency-safe, but we can't personalize.
-            return _xml(_hangup(
-                "Thank you for calling SentinelCall. I couldn't find your record "
-                "from this number. Please call your nurse line, or 9 1 1 in an "
-                "emergency."))
+            # Unknown caller (e.g. a judge dialing the demo line): DON'T hang up.
+            # Fall back to a record-less guest so the caller still gets the full
+            # emergency-safe pipeline + general Q&A — just no personalization and
+            # no access to any real patient's clinical data.
+            _trace.line("INBOUND", f"unknown caller {from_number!r} -> guest path",
+                        _trace.YELLOW)
+            patient = guest_patient(from_number)
+            _SESSIONS[call_sid] = CallSession(patient=patient, direction="inbound")
+            greeting = (
+                "Hello, this is SentinelCall, the post-operative check-in line. "
+                "If this is an emergency, please hang up and call 9 1 1. "
+                "I don't have a record for this number, but I can still help with "
+                "general recovery questions. What can I help you with today?"
+            )
+            return _xml(_record_turn(_abs_url(f"/voice/turn?sid={call_sid}"), prompt=greeting))
         _SESSIONS[call_sid] = CallSession(patient=patient, direction="inbound")
         greeting = (
             f"Hello {patient.preferred_name}, this is SentinelCall. "

@@ -68,6 +68,30 @@ class Patient:
         return f"{self.preferred_name}, day {self.post_op_day} after {self.surgery.lower()}"
 
 
+def guest_patient(phone: str = "") -> Patient:
+    """A synthetic, record-less caller for UNKNOWN inbound numbers (e.g. a judge
+    calling the demo line). It carries NO clinical data — empty `prescribed`, so
+    no medications, empty red-flag thresholds, and empty grounding. This lets an
+    unknown caller flow through the IDENTICAL emergency-screen + safety-gate + Q&A
+    pipeline without ever exposing another patient's record: grounding is empty,
+    so the inbound Q&A can only answer from the general reference protocol or fall
+    back to 'a nurse can help'. Generic `surgery` routes Layer-2 RAG to
+    protocol_generic.md."""
+    return Patient(
+        patient_id="GUEST",
+        name="Caller",
+        preferred_name="there",  # -> "Hello there, this is SentinelCall"
+        phone=_normalize_phone(phone),
+        age=0,
+        surgery="a recent procedure",
+        surgery_date="",
+        post_op_day=0,
+        surgeon="",
+        caregiver={},
+        prescribed={},  # no meds, no thresholds -> nothing personal to leak
+    )
+
+
 def _load_raw() -> Dict[str, Any]:
     with open(_PATIENTS_FILE) as f:
         return json.load(f)
