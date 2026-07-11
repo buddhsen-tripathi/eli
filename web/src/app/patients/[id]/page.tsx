@@ -361,13 +361,14 @@ function MedicationsCard({ patient, onChanged }: { patient: PatientDetail; onCha
   );
 }
 
-const EMPTY_CG = { name: "", relationship_to_patient: "", phone: "", notify_when: "always" };
+const EMPTY_CG = { name: "", relationship_to_patient: "", email: "", phone: "", notify_when: "always" };
 type CgForm = typeof EMPTY_CG;
 
 function cgToForm(c: Caregiver): CgForm {
   return {
     name: c.name,
     relationship_to_patient: c.relationship_to_patient ?? "",
+    email: c.email ?? "",
     phone: c.phone ?? "",
     notify_when: c.notify_when,
   };
@@ -392,7 +393,8 @@ function CgFields({ form, set }: { form: CgForm; set: (f: CgForm) => void }) {
     <>
       <Input value={form.name} onChange={(v) => set({ ...form, name: v })} placeholder="Name" />
       <Input value={form.relationship_to_patient} onChange={(v) => set({ ...form, relationship_to_patient: v })} placeholder="Relationship e.g. daughter" />
-      <Input value={form.phone} onChange={(v) => set({ ...form, phone: v })} placeholder="Phone e.g. +1650…" />
+      <Input value={form.email} onChange={(v) => set({ ...form, email: v })} type="email" placeholder="Email — where recaps are sent" />
+      <Input value={form.phone} onChange={(v) => set({ ...form, phone: v })} placeholder="Phone (optional)" />
       <NotifySelect value={form.notify_when} onChange={(v) => set({ ...form, notify_when: v })} />
     </>
   );
@@ -408,6 +410,7 @@ function CaregiverRow({ cg, onChanged }: { cg: Caregiver; onChanged: () => void 
     await api.updateCaregiver(cg.id, {
       name: form.name,
       relationship_to_patient: form.relationship_to_patient || undefined,
+      email: form.email || undefined,
       phone: form.phone || undefined,
       notify_when: form.notify_when as Caregiver["notify_when"],
     });
@@ -439,7 +442,7 @@ function CaregiverRow({ cg, onChanged }: { cg: Caregiver; onChanged: () => void 
           {cg.name}
           {cg.relationship_to_patient && <span className="text-muted"> · {cg.relationship_to_patient}</span>}
         </p>
-        <p className="font-mono text-xs text-faint">{cg.phone ?? "no phone"} · {cg.notify_when}</p>
+        <p className="font-mono text-xs text-faint">{cg.email ?? "no email"} · {cg.notify_when}</p>
       </div>
       <div className="flex shrink-0 gap-3 text-xs">
         <button onClick={() => setEditing(true)} className="text-faint hover:text-ink">Edit</button>
@@ -459,6 +462,7 @@ function CaregiversCard({ patient, onChanged }: { patient: PatientDetail; onChan
     await api.addCaregiver(patient.id, {
       name: form.name,
       relationship_to_patient: form.relationship_to_patient || undefined,
+      email: form.email || undefined,
       phone: form.phone || undefined,
       notify_when: form.notify_when as Caregiver["notify_when"],
     });
