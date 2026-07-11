@@ -51,10 +51,17 @@ def _format_medications(meds: list[Medication]) -> str:
     return "\n".join(lines)
 
 
-async def build_dynamic_variables(patient_id: str | None) -> dict[str, str]:
-    """Return the EHR-derived dynamic variables for a call. Safe with no patient."""
+async def build_dynamic_variables(
+    patient_id: str | None, direction: str = "outbound"
+) -> dict[str, str]:
+    """Return the EHR-derived dynamic variables for a call. Safe with no patient.
+
+    ``direction`` ("inbound"/"outbound") lets the agent switch between running a
+    check-in (outbound) and answering the patient's questions (inbound).
+    """
     now = _local_now()
     variables = {
+        "call_direction": direction,
         "patient_name": "",
         "procedure": "your recent procedure",
         "recovery_day": "",

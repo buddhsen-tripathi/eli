@@ -64,14 +64,18 @@ def _elevenlabs_ws_url() -> str:
     )
 
 
-def _twiml_stream(public_ws_url: str, patient_id: str | None = None) -> str:
-    param = f'<Parameter name="patient_id" value="{patient_id}"/>' if patient_id else ""
+def _twiml_stream(
+    public_ws_url: str, patient_id: str | None = None, direction: str = "inbound"
+) -> str:
+    params = f'<Parameter name="direction" value="{direction}"/>'
+    if patient_id:
+        params += f'<Parameter name="patient_id" value="{patient_id}"/>'
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
         "<Connect>"
         f'<Stream url="{public_ws_url}/call/stream">'
-        f"{param}"
+        f"{params}"
         "</Stream>"
         "</Connect>"
         "</Response>"
@@ -103,6 +107,8 @@ async def incoming_call(request: Request) -> PlainTextResponse:
     # inbound call, identify the patient by the caller's phone number so the agent
     # still gets their EHR context (and can answer "which is my red pill?").
     patient_id = request.query_params.get("patient_id")
+    # patient_id in the query means WE placed the call (outbound check-in).
+    direction = "outbound" if patient_id else "inbound"
     if not patient_id:
         form = await request.form()
         from_number = form.get("From")
@@ -123,7 +129,7 @@ async def incoming_call(request: Request) -> PlainTextResponse:
     base_url = os.environ["PUBLIC_BASE_URL"].rstrip("/")
     ws_base = base_url.replace("https://", "wss://").replace("http://", "ws://")
     return PlainTextResponse(
-        content=_twiml_stream(ws_base, patient_id), media_type="application/xml"
+        content=_twiml_stream(ws_base, patient_id, direction), media_type="application/xml"
     )
 
 
@@ -152,7 +158,8 @@ async def call_stream(twilio_ws: WebSocket):
                 call_sid = msg["start"].get("callSid", stream_sid)
                 params = msg["start"].get("customParameters", {})
                 patient_id = params.get("patient_id")
-                direction = "outbound" if patient_id else "inbound"
+                # direction is set by /call/incoming (outbound = we dialed them).
+                direction = params.get("direction") or ("outbound" if patient_id else "inbound")
                 break
             elif event == "media":
                 pre_start_media.append(msg["media"]["payload"])
@@ -178,7 +185,7 @@ async def call_stream(twilio_ws: WebSocket):
 
     from app.ehr_context import build_dynamic_variables
 
-    dynamic_variables = await build_dynamic_variables(patient_id)
+    dynamic_variables = await build_dynamic_variables(patient_id, direction)
     print(
         f"[twilio] start: call_id={call_id} sid={call_sid} patient_id={patient_id} "
         f"direction={direction} agent_name={dynamic_variables['patient_name']!r} "
