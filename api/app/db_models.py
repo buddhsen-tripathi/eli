@@ -57,6 +57,9 @@ class Medication(Base):
     patient_id: Mapped[str] = mapped_column(String, ForeignKey("patients.id"), index=True)
     name: Mapped[str] = mapped_column(String)  # "Amoxicillin"
     appearance: Mapped[str | None] = mapped_column(String, nullable=True)  # "small red capsule"
+    # Tactile cue for low-vision patients: how the pill feels — shape, size,
+    # score lines, coating. e.g. "round with a line you can feel across the middle".
+    tactile: Mapped[str | None] = mapped_column(String, nullable=True)
     dosage: Mapped[str | None] = mapped_column(String, nullable=True)  # "500mg, 1 tablet"
     schedule: Mapped[str | None] = mapped_column(String, nullable=True)  # "8:00 AM and 8:00 PM"
     instructions: Mapped[str | None] = mapped_column(String, nullable=True)  # "with food"

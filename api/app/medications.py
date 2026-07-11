@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api", tags=["medications"])
 class MedicationIn(BaseModel):
     name: str
     appearance: str | None = None
+    tactile: str | None = None
     dosage: str | None = None
     schedule: str | None = None
     instructions: str | None = None
@@ -22,6 +23,7 @@ class MedicationIn(BaseModel):
 class MedicationPatch(BaseModel):
     name: str | None = None
     appearance: str | None = None
+    tactile: str | None = None
     dosage: str | None = None
     schedule: str | None = None
     instructions: str | None = None
@@ -35,6 +37,7 @@ def serialize(m: Medication) -> dict:
         "patient_id": m.patient_id,
         "name": m.name,
         "appearance": m.appearance,
+        "tactile": m.tactile,
         "dosage": m.dosage,
         "schedule": m.schedule,
         "instructions": m.instructions,

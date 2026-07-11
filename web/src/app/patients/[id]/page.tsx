@@ -250,13 +250,14 @@ function NotesCard({ patient, onSaved }: { patient: PatientDetail; onSaved: () =
   );
 }
 
-const EMPTY_MED = { name: "", appearance: "", dosage: "", schedule: "", instructions: "" };
+const EMPTY_MED = { name: "", appearance: "", tactile: "", dosage: "", schedule: "", instructions: "" };
 type MedForm = typeof EMPTY_MED;
 
 function medToForm(m: Medication): MedForm {
   return {
     name: m.name,
     appearance: m.appearance ?? "",
+    tactile: m.tactile ?? "",
     dosage: m.dosage ?? "",
     schedule: m.schedule ?? "",
     instructions: m.instructions ?? "",
@@ -268,6 +269,7 @@ function MedFields({ form, set }: { form: MedForm; set: (f: MedForm) => void }) 
     <div className="grid gap-2 sm:grid-cols-2">
       <Input value={form.name} onChange={(v) => set({ ...form, name: v })} placeholder="Name e.g. Amoxicillin" />
       <Input value={form.appearance} onChange={(v) => set({ ...form, appearance: v })} placeholder="Looks like… e.g. small red capsule" />
+      <Input value={form.tactile} onChange={(v) => set({ ...form, tactile: v })} placeholder="Feels like… e.g. round with a score line" className="sm:col-span-2" />
       <Input value={form.dosage} onChange={(v) => set({ ...form, dosage: v })} placeholder="Dosage e.g. 500mg" />
       <Input value={form.schedule} onChange={(v) => set({ ...form, schedule: v })} placeholder="Schedule e.g. 8 AM & 8 PM" />
       <Input value={form.instructions} onChange={(v) => set({ ...form, instructions: v })} placeholder="Instructions e.g. with food" className="sm:col-span-2" />
@@ -285,6 +287,7 @@ function MedRow({ med, onChanged }: { med: Medication; onChanged: () => void }) 
     await api.updateMedication(med.id, {
       name: form.name,
       appearance: form.appearance || undefined,
+      tactile: form.tactile || undefined,
       dosage: form.dosage || undefined,
       schedule: form.schedule || undefined,
       instructions: form.instructions || undefined,
@@ -318,7 +321,10 @@ function MedRow({ med, onChanged }: { med: Medication; onChanged: () => void }) 
           {med.dosage && <span className="text-muted"> · {med.dosage}</span>}
         </p>
         {med.appearance && (
-          <p className="mt-0.5 text-xs font-medium text-sage-ink">“{med.appearance}”</p>
+          <p className="mt-0.5 text-xs font-medium text-sage-ink">👁 {med.appearance}</p>
+        )}
+        {med.tactile && (
+          <p className="mt-0.5 text-xs text-muted-foreground">✋ {med.tactile}</p>
         )}
         <p className="mt-0.5 text-xs text-muted">
           {[med.schedule, med.instructions].filter(Boolean).join(" · ") || "—"}
@@ -342,6 +348,7 @@ function MedicationsCard({ patient, onChanged }: { patient: PatientDetail; onCha
     await api.addMedication(patient.id, {
       name: form.name,
       appearance: form.appearance || undefined,
+      tactile: form.tactile || undefined,
       dosage: form.dosage || undefined,
       schedule: form.schedule || undefined,
       instructions: form.instructions || undefined,

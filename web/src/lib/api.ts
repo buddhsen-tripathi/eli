@@ -46,6 +46,7 @@ export type Medication = {
   patient_id: string;
   name: string;
   appearance: string | null;
+  tactile: string | null;
   dosage: string | null;
   schedule: string | null;
   instructions: string | null;

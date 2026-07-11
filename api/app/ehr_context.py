@@ -42,8 +42,13 @@ def _format_medications(meds: list[Medication]) -> str:
     lines = []
     for m in active:
         desc = m.name
+        look = []
         if m.appearance:
-            desc += f" (the {m.appearance})"
+            look.append(f"looks like a {m.appearance}")
+        if m.tactile:
+            look.append(f"feels like {m.tactile}")
+        if look:
+            desc += f" ({'; '.join(look)})"
         if m.dosage:
             desc += f", {m.dosage}"
         tail = ", ".join(x for x in (m.schedule, m.instructions) if x)

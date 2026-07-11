@@ -22,6 +22,7 @@ from app.db_models import Base  # noqa: E402
 COLUMN_MIGRATIONS = [
     "ALTER TABLE patients ADD COLUMN IF NOT EXISTS checkin_days JSONB DEFAULT '[1, 3, 7]'::jsonb",
     "ALTER TABLE calls ADD COLUMN IF NOT EXISTS el_conversation_id VARCHAR",
+    "ALTER TABLE medications ADD COLUMN IF NOT EXISTS tactile VARCHAR",
 ]
 
 
