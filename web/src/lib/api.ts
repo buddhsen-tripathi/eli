@@ -8,6 +8,20 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = (data as { detail?: string })?.detail ?? res.statusText;
+    throw new Error(detail);
+  }
+  return data as T;
+}
+
 export type Patient = {
   id: string;
   name: string;
@@ -58,6 +72,13 @@ export type TranscriptTurn = {
   timestamp: string;
 };
 
+export type DemoCallResult = {
+  call_sid: string;
+  patient_id: string;
+  to: string;
+  status: string;
+};
+
 export const api = {
   listPatients: () => get<Patient[]>("/api/patients"),
   listCalls: () => get<Call[]>("/api/calls"),
@@ -65,4 +86,6 @@ export const api = {
   getTurns: (id: string) => get<TranscriptTurn[]>(`/api/calls/${id}/turns`),
   listCaregivers: (patientId: string) =>
     get<Caregiver[]>(`/api/patients/${patientId}/caregivers`),
+  // Dials DESTINATION_PHONE_NUMBER (set on the backend) and bridges to the agent.
+  triggerDemoCall: () => post<DemoCallResult>("/call/outbound"),
 };
