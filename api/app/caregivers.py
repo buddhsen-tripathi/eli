@@ -18,6 +18,15 @@ class CaregiverIn(BaseModel):
     is_primary: bool = False
 
 
+class CaregiverPatch(BaseModel):
+    name: str | None = None
+    relationship_to_patient: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    notify_when: str | None = None
+    is_primary: bool | None = None
+
+
 def _serialize(c: Caregiver) -> dict:
     return {
         "id": c.id,
@@ -47,6 +56,20 @@ async def add_caregiver(
         raise HTTPException(status_code=404, detail="patient not found")
     caregiver = Caregiver(patient_id=patient_id, **body.model_dump())
     db.add(caregiver)
+    await db.commit()
+    await db.refresh(caregiver)
+    return _serialize(caregiver)
+
+
+@router.patch("/caregivers/{caregiver_id}")
+async def update_caregiver(
+    caregiver_id: str, body: CaregiverPatch, db: AsyncSession = Depends(get_db)
+):
+    caregiver = await db.get(Caregiver, caregiver_id)
+    if not caregiver:
+        raise HTTPException(status_code=404, detail="caregiver not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(caregiver, field, value)
     await db.commit()
     await db.refresh(caregiver)
     return _serialize(caregiver)
