@@ -1,0 +1,37 @@
+# Render Blueprint for the FastAPI backend (api/).
+# The Next.js frontend (web/) deploys separately on Vercel — see DEPLOY.md.
+#
+# Import this repo at https://dashboard.render.com/blueprints, then fill in the
+# secret env vars (marked sync:false) in the Render dashboard.
+services:
+  - type: web
+    name: arya-api
+    runtime: python
+    rootDir: api
+    # Free instances sleep after ~15 min idle → the first Twilio webhook after a
+    # sleep can time out. Use "starter" (or keep-alive) for live calls.
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_AGENT_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Set AFTER the first deploy, to this service's public URL (https://arya-api.onrender.com).
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # The Vercel frontend origin(s), comma-separated.
+      - key: CORS_ORIGINS
+        sync: false
