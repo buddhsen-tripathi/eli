@@ -15,7 +15,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "arya — post-op care",
+  title: "Eli — post-op care",
   description: "Clinician view for post-op voice check-ins",
 };
 
@@ -29,10 +29,10 @@ export default function RootLayout({
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
             <Link href="/" className="flex items-center gap-2.5">
               <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground shadow-2xs">
-                a
+                e
               </span>
               <span className="text-lg font-semibold tracking-tight text-foreground">
-                arya
+                Eli
               </span>
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 post-op care
@@ -46,7 +46,7 @@ export default function RootLayout({
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">{children}</main>
         <footer className="mx-auto w-full max-w-5xl px-6 py-8 text-xs text-muted-foreground">
-          arya · voice check-ins for recovering patients
+          Eli · voice check-ins for recovering patients
         </footer>
       </body>
     </html>
