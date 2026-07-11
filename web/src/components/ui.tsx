@@ -12,7 +12,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgb(var(--shadow)/0.04),0_8px_24px_-12px_rgb(var(--shadow)/0.10)] ${className}`}
+      className={`rounded-lg border border-border bg-card text-card-foreground shadow-2xs ${className}`}
     >
       {children}
     </div>
@@ -21,7 +21,7 @@ export function Card({
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-faint">
+    <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
       {children}
     </h2>
   );
@@ -38,9 +38,9 @@ export function TriageBadge({
   if (!triage) {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 rounded-full border border-line text-faint ${pad}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border border-border text-muted-foreground ${pad}`}
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-faint" />
+        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
         No triage
       </span>
     );
@@ -72,19 +72,16 @@ export function Button({
   className?: string;
 }) {
   const styles = {
-    primary:
-      "bg-sage text-white hover:brightness-110 shadow-sm",
-    ghost:
-      "border border-line bg-transparent text-ink hover:bg-sage-soft/60",
-    danger:
-      "border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40",
+    primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+    ghost: "border border-border bg-background hover:bg-accent hover:text-accent-foreground",
+    danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
   }[variant];
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${styles} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 ${styles} ${className}`}
     >
       {children}
     </button>
@@ -110,7 +107,7 @@ export function Input({
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full rounded-xl border border-line bg-paper/50 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-sage focus:bg-card focus:ring-2 focus:ring-sage/15 ${className}`}
+      className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 ${className}`}
     />
   );
 }

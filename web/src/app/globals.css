@@ -1,89 +1,171 @@
 @import "tailwindcss";
 
-/* ── arya · refined medical-editorial system ─────────────────────────────────
-   Warm paper, humane serif headings, clinical mono for data, calm sage primary,
-   sharp triage semantics. Light + dark. */
+/* ── arya UI — ported from the nimu-outreach design system ────────────────────
+   shadcn/tweakcn OKLCH tokens: warm cream canvas, vivid green primary, Inter +
+   JetBrains Mono, aggressive negative display tracking. Dark via prefers-color-scheme. */
 
 :root {
-  --paper: #eef1f7; /* cool light canvas */
-  --card: #ffffff; /* crisp surface */
-  --line: #dfe4ee; /* cool hairline border */
-  --ink: #0c1220; /* deep cool near-black */
-  --muted: #545e72; /* secondary text (slate) */
-  --faint: #98a1b4; /* tertiary / placeholders */
-  --sage: #2b54e6; /* primary — confident cobalt */
-  --sage-ink: #1c3bad; /* darker cobalt for text on tint */
-  --sage-soft: #e6ecfd; /* cobalt tint fill */
-  --shadow: 15 23 42;
+  --background: oklch(0.966 0.013 88.003);
+  --foreground: oklch(0.235 0 0);
+  --card: oklch(0.99 0.006 86.4257);
+  --card-foreground: oklch(0.235 0 0);
+  --popover: oklch(0.99 0.006 86.4257);
+  --popover-foreground: oklch(0.235 0 0);
+  --primary: oklch(0.72 0.15 158);
+  --primary-foreground: oklch(0.26 0.06 158);
+  --secondary: oklch(0.935 0.016 87.5232);
+  --secondary-foreground: oklch(0.3012 0 0);
+  --muted: oklch(0.93 0.016 87.163);
+  --muted-foreground: oklch(0.4688 0.0136 84.5932);
+  --accent: oklch(0.95 0.015 99.616);
+  --accent-foreground: oklch(0.3012 0 0);
+  --destructive: oklch(0.5771 0.2152 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.895 0.017 87.1621);
+  --input: oklch(0.895 0.017 87.1621);
+  --ring: oklch(0.72 0.15 158);
+  --radius: 0.5rem;
+  --shadow-2xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 4px 10px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0px 4px 10px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0px 4px 10px 0px hsl(0 0% 0% / 0.1), 0px 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0px 4px 10px 0px hsl(0 0% 0% / 0.1), 0px 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0px 4px 10px 0px hsl(0 0% 0% / 0.1), 0px 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --tracking-normal: 0.01em;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #080b13; /* deep cool near-black */
-    --card: #111726; /* raised surface */
-    --line: #20293b; /* cool border */
-    --ink: #eaeef7;
-    --muted: #929cb2;
-    --faint: #586074;
-    --sage: #6d92ff; /* lighter cobalt for dark */
-    --sage-ink: #a8c0ff;
-    --sage-soft: #15203a;
-    --shadow: 0 0 0;
+    --background: oklch(0.1913 0 0);
+    --foreground: oklch(0.9173 0.0133 82.4015);
+    --card: oklch(0.2264 0 0);
+    --card-foreground: oklch(0.9173 0.0133 82.4015);
+    --popover: oklch(0.2264 0 0);
+    --popover-foreground: oklch(0.9173 0.0133 82.4015);
+    --primary: oklch(0.76 0.15 158);
+    --primary-foreground: oklch(0.22 0.05 158);
+    --secondary: oklch(0.252 0 0);
+    --secondary-foreground: oklch(0.852 0.0205 100.6306);
+    --muted: oklch(0.285 0 0);
+    --muted-foreground: oklch(0.6348 0.0113 81.7875);
+    --accent: oklch(0.3329 0 0);
+    --accent-foreground: oklch(0.852 0.0205 100.6306);
+    --destructive: oklch(0.6368 0.2078 25.3313);
+    --destructive-foreground: oklch(1 0 0);
+    --border: oklch(0.2931 0 0);
+    --input: oklch(0.2931 0 0);
+    --ring: oklch(0.76 0.15 158);
+    --shadow-2xs: 0px 6px 15px 0px hsl(0 0% 0% / 0.15);
+    --shadow-sm: 0px 6px 15px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+    --shadow: 0px 6px 15px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+    --shadow-md: 0px 6px 15px 0px hsl(0 0% 0% / 0.3), 0px 2px 4px -1px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0px 6px 15px 0px hsl(0 0% 0% / 0.3), 0px 4px 6px -1px hsl(0 0% 0% / 0.3);
   }
 }
 
 @theme inline {
-  --color-paper: var(--paper);
+  /* nimu semantic tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   --color-card: var(--card);
-  --color-line: var(--line);
-  --color-ink: var(--ink);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
-  --color-faint: var(--faint);
-  --color-sage: var(--sage);
-  --color-sage-ink: var(--sage-ink);
-  --color-sage-soft: var(--sage-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-fraunces);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* arya alias tokens → map onto nimu so existing markup adopts the theme */
+  --color-paper: var(--background);
+  --color-line: var(--border);
+  --color-ink: var(--foreground);
+  --color-muted: var(--muted-foreground);
+  --color-faint: var(--muted-foreground);
+  --color-sage: var(--primary);
+  --color-sage-ink: var(--primary);
+  --color-sage-soft: var(--secondary);
+
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+  --font-display: var(--font-inter);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Display type scale (negative tracking eases to zero at body) */
+  --text-display-md: 2.5rem;
+  --text-display-md--line-height: 1.15;
+  --text-display-md--letter-spacing: -0.025em;
+  --text-display-md--font-weight: 600;
+  --text-headline: 1.75rem;
+  --text-headline--line-height: 1.2;
+  --text-headline--letter-spacing: -0.0214em;
+  --text-headline--font-weight: 600;
+  --text-card-title: 1.375rem;
+  --text-card-title--line-height: 1.25;
+  --text-card-title--letter-spacing: -0.0182em;
+  --text-card-title--font-weight: 600;
+  --text-eyebrow: 0.8125rem;
+  --text-eyebrow--line-height: 1.3;
+  --text-eyebrow--letter-spacing: 0.0308em;
+  --text-eyebrow--font-weight: 500;
 }
 
-body {
-  background-color: var(--paper);
-  /* cool atmosphere: a soft cobalt light source top-right, subtle depth bottom-left */
-  background-image:
-    radial-gradient(55rem 55rem at 100% -15%, color-mix(in oklab, var(--sage) 12%, transparent), transparent 58%),
-    radial-gradient(45rem 45rem at -10% 115%, color-mix(in oklab, var(--sage) 7%, transparent), transparent 55%);
-  background-attachment: fixed;
-  color: var(--ink);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    letter-spacing: var(--tracking-normal);
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 }
 
-/* Editorial serif for display headings */
 .font-display {
-  font-family: var(--font-display), Georgia, "Times New Roman", serif;
-  font-optical-sizing: auto;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Staggered page-load reveal */
 @keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .rise {
   animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Themed thin scrollbars */
 * {
-  border-color: var(--line);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--sage) 28%, transparent);
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
 }

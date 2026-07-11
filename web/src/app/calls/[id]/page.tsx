@@ -135,8 +135,8 @@ export default function CallPage() {
                     <div
                       className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                         agent
-                          ? "rounded-tl-sm bg-paper text-ink"
-                          : "rounded-tr-sm bg-sage text-white"
+                          ? "rounded-tl-sm bg-secondary text-secondary-foreground"
+                          : "rounded-tr-sm bg-primary text-primary-foreground"
                       }`}
                     >
                       {cleanTranscript(t.text)}
