@@ -3,15 +3,17 @@
   <style>
     /* ---- design tokens (validated status palette + clinical chrome) ---- */
     .sc {
-      --bg: #f4f5f7; --surface: #ffffff; --surface-2: #fafbfc;
-      --ink: #0f1720; --ink-2: #52606d; --muted: #7b8794;
-      --hair: #e4e7eb; --hair-2: #eef1f4;
-      --brand: #1c6dd0; --brand-ink: #0b3d82;
-      /* status palette (fixed, never themed) */
-      --good: #0ca30c; --good-bg: #e8f6e8;
-      --warning: #b9820b; --warning-bg: #fdf3dd;
-      --serious: #c85a2e; --serious-bg: #fbe9df;
-      --critical: #d03b3b; --critical-bg: #fbe4e4;
+      /* Off-white ground, NOT pure white — NHS/British Dyslexia Assoc. guidance:
+         dark text on a light-but-not-white surface reduces glare for clinicians. */
+      --bg: #eef1f3; --surface: #fbfcfc; --surface-2: #f4f6f7;
+      --ink: #212b32; --ink-2: #4c6272; --muted: #7b8794;   /* NHS text #212b32 */
+      --hair: #dfe4e7; --hair-2: #e9edef;
+      --brand: #005eb8; --brand-ink: #003d78;               /* NHS blue */
+      /* status palette — NHS-validated clinical severity hexes (WCAG AA+). */
+      --good: #007f3b; --good-bg: #e6f2ec;                   /* NHS success */
+      --warning: #a5670a; --warning-bg: #fdf2df;             /* amber, AA on light */
+      --serious: #b8500f; --serious-bg: #fbe8dd;
+      --critical: #d5281b; --critical-bg: #fbe5e3;           /* NHS error red */
       --shadow: 0 1px 2px rgba(16,23,32,.06), 0 2px 8px rgba(16,23,32,.04);
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       color: var(--ink); background: var(--bg);
@@ -102,6 +104,11 @@
     .sc-rright { text-align: right; align-self: stretch; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; gap: 6px; }
     .sc-day { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
     .sc-day b { color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .sc-action-tag { font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: -.1px; }
+    .t-critical .sc-action-tag { color: var(--critical); }
+    .t-watch .sc-action-tag { color: var(--warning); }
+    .t-stable .sc-action-tag { color: var(--muted); }
+    .t-nocontact .sc-action-tag { color: var(--ink-2); }
 
     /* sparkline */
     .sc-spark { width: 96px; height: 30px; display: block; }
@@ -191,6 +198,8 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function tierLabel(t){ return {critical:"Critical",watch:"Watch",stable:"Stable",nocontact:"No contact"}[t]||t; }
   function tierIcon(t){ return {critical:"⚠",watch:"▲",stable:"✓",nocontact:"○"}[t]||"•"; }
+  // Action semantics (evidence: Red = act today, Yellow = review at next check).
+  function tierAction(t){ return {critical:"Call today",watch:"Review at next check-in",stable:"No action",nocontact:"Overdue — reach out"}[t]||""; }
 
   // ---- sparkline: pain trend with threshold band ----
   function spark(vals, w, h){
@@ -273,9 +282,9 @@
           + '<div class="sc-reasons">'+reasonChips(r)+'</div>'
         + '</div>'
         + '<div class="sc-rright">'
-          + '<div class="sc-day">Day <b>'+(r.post_op_day==null?"–":r.post_op_day)+'</b></div>'
+          + '<div class="sc-action-tag t-'+r.tier+'">'+esc(tierAction(r.tier))+'</div>'
           + spark(r.pain_trend, 96, 30)
-          + '<div class="sc-spark-lbl">pain trend</div>'
+          + '<div class="sc-spark-lbl">pain · day '+(r.post_op_day==null?"–":r.post_op_day)+'</div>'
         + '</div>'
       + '</div>';
     }).join("");
@@ -295,13 +304,25 @@
     var xs=function(i){return pad+i*(w-pad-8)/(vals.length-1);};
     var ys=function(v){return 8+(1-v/10)*(h-8-pad);};
     var d=vals.map(function(v,i){return (i?"L":"M")+xs(i).toFixed(1)+" "+ys(v).toFixed(1);}).join(" ");
-    var band='<rect x="'+pad+'" y="'+ys(10).toFixed(1)+'" width="'+(w-pad-8)+'" height="'+(ys(6)-ys(10)).toFixed(1)+'" fill="var(--warning)" opacity="0.10"/>';
+    // Personal baseline band = this patient's own mean ± 1 (evidence: overlay the
+    // patient's baseline, not just a static population threshold). Deviations
+    // outside it are what the clinician scans for.
+    var mean = vals.reduce(function(a,b){return a+b;},0)/vals.length;
+    var bLo=Math.max(0,mean-1), bHi=Math.min(10,mean+1);
+    var baseBand='<rect x="'+pad+'" y="'+ys(bHi).toFixed(1)+'" width="'+(w-pad-8)+'" height="'+(ys(bLo)-ys(bHi)).toFixed(1)+'" fill="var(--brand)" opacity="0.07"/>';
     var thr='<line x1="'+pad+'" y1="'+ys(8).toFixed(1)+'" x2="'+(w-8)+'" y2="'+ys(8).toFixed(1)+'" stroke="var(--critical)" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>';
     var pts=vals.map(function(v,i){var c=v>=8?"var(--critical)":v>=6?"var(--warning)":"var(--good)";return '<circle cx="'+xs(i).toFixed(1)+'" cy="'+ys(v).toFixed(1)+'" r="3" fill="'+c+'"/>';}).join("");
     var yl='';[0,5,10].forEach(function(v){yl+='<text x="4" y="'+(ys(v)+3).toFixed(1)+'" font-size="9" fill="var(--muted)">'+v+'</text>';});
-    return '<svg class="sc-trend" viewBox="0 0 '+w+' '+h+'">'+band+thr+yl
+    // Magnitude + direction readout (evidence: state deviation magnitude AND direction).
+    var delta = vals[vals.length-1]-vals[0];
+    var dirTxt = delta>0 ? 'up '+delta+' since first check-in' : delta<0 ? 'down '+Math.abs(delta)+' since first check-in' : 'steady across check-ins';
+    var dirCol = delta>0 ? 'var(--critical)' : delta<0 ? 'var(--good)' : 'var(--muted)';
+    var arrow = delta>0?'↑':delta<0?'↓':'→';
+    return '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font-size:22px;font-weight:700;font-variant-numeric:tabular-nums">'+vals[vals.length-1]+'<span style="font-size:12px;color:var(--muted)">/10 now</span></span>'
+      +'<span style="font-size:12px;font-weight:600;color:'+dirCol+'">'+arrow+' '+dirTxt+'</span></div>'
+      +'<svg class="sc-trend" viewBox="0 0 '+w+' '+h+'">'+baseBand+thr+yl
       +'<path d="'+d+'" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'+pts+'</svg>'
-      +'<div class="sc-legend"><span><i style="background:var(--brand)"></i>pain 0–10</span><span><i style="background:var(--critical);height:0;border-top:1px dashed var(--critical)"></i>uncontrolled ≥8</span></div>';
+      +'<div class="sc-legend"><span><i style="background:var(--brand)"></i>pain 0–10</span><span><i style="background:var(--brand);opacity:.25"></i>their baseline</span><span><i style="background:var(--critical);height:0;border-top:1px dashed var(--critical)"></i>uncontrolled ≥8</span></div>';
   }
   function tsShort(ts){ if(!ts) return ""; var m=/(\d{4})-(\d{2})-(\d{2})/.exec(ts); return m?m[2]+"/"+m[3]:ts.slice(0,10); }
 
