@@ -146,13 +146,26 @@ def _twiml(*inner: str) -> str:
 
 
 async def _record_turn(action_url: str, *, prompt: Optional[str] = None) -> str:
-    """Speak an optional prompt, then record the patient's reply (their turn)."""
+    """Speak an optional prompt, then record the patient's reply (their turn).
+
+    Recording params are tuned for slow, elderly speech AND to avoid capturing
+    the agent's own audio:
+      * A short <Pause> after the prompt lets the played audio fully finish and
+        the line settle, so <Record> doesn't grab the echo/tail of our own voice
+        (the cause of the "I'm doing alright. I'm doing alright." doubling).
+      * maxLength=30s so a slow speaker isn't cut off mid-sentence.
+      * timeout=5s of trailing silence ends the turn (patients pause to think;
+        3s cut them off).
+      * playBeep=true gives an audible "your turn" cue for elderly callers.
+    """
     parts = []
     if prompt:
         parts.append(await _say(prompt))
+    # Let our audio finish and the line go quiet before we start listening.
+    parts.append('<Pause length="1"/>')
     parts.append(
-        f'<Record action="{action_url}" method="POST" maxLength="8" '
-        f'timeout="3" playBeep="false" trim="trim-silence" />'
+        f'<Record action="{action_url}" method="POST" maxLength="30" '
+        f'timeout="5" playBeep="true" trim="trim-silence" finishOnKey="" />'
     )
     # If they say nothing, gently re-prompt via the same action (Twilio posts
     # with an empty RecordingUrl handled by the webhook).
@@ -332,7 +345,7 @@ def build_app():
         patient = load_patient_by_id(patient_id)
         if not patient:
             return _xml(await _hangup("I'm sorry, I couldn't find your record. Goodbye."))
-        sup = Supervisor(patient, direction="outbound")
+        sup = Supervisor(patient, direction="outbound", fast_mode=True)
         _SESSIONS[call_sid] = CallSession(patient=patient, direction="outbound", supervisor=sup,
                                           greeted=True)
         greeting = sup.greeting()
@@ -368,7 +381,7 @@ def build_app():
         # (S1..S7) handles the flow; red flags still escalate.
         _trace.line("INBOUND", f"known patient {patient.patient_id} -> driven check-in",
                     _trace.GREEN)
-        sup = Supervisor(patient, direction="outbound")
+        sup = Supervisor(patient, direction="outbound", fast_mode=True)
         _SESSIONS[call_sid] = CallSession(patient=patient, direction="outbound",
                                           supervisor=sup, greeted=True)
         greeting = sup.inbound_greeting()

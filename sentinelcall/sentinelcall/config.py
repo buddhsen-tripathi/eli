@@ -90,7 +90,7 @@ if _HAVE_PYDANTIC:
         # --- Behaviour tuning ---
         # Below this GER confidence on a safety-critical field, the agent must
         # read back to confirm rather than accept the transcript.
-        ger_confirm_threshold: float = 0.75
+        ger_confirm_threshold: float = 0.6
         # Emergency screen + safety gate are always on; this only toggles very
         # verbose per-turn console tracing for the demo screen.
         demo_trace: bool = True
@@ -134,7 +134,7 @@ else:  # pragma: no cover — minimal fallback if pydantic isn't installed yet
             self.volunteer_sms_number = g("VOLUNTEER_SMS_NUMBER")
             self.host = g("HOST", "0.0.0.0")
             self.port = int(g("PORT", "8080"))
-            self.ger_confirm_threshold = float(g("GER_CONFIRM_THRESHOLD", "0.75"))
+            self.ger_confirm_threshold = float(g("GER_CONFIRM_THRESHOLD", "0.6"))
             self.demo_trace = g("DEMO_TRACE", "true").lower() != "false"
 
         def require(self, *keys: str) -> None:

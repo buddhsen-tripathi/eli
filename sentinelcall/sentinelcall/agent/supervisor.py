@@ -64,9 +64,14 @@ class SupervisorTurn:
 
 
 class Supervisor:
-    def __init__(self, patient: Patient, *, direction: str = "outbound") -> None:
+    def __init__(self, patient: Patient, *, direction: str = "outbound",
+                 fast_mode: bool = False) -> None:
         self.patient = patient
         self.direction = direction
+        # fast_mode skips the per-turn tone-shaping LLM call and speaks the (warm)
+        # templates directly. Used on the phone path to cut ~1-2s of latency per
+        # turn — GER (the hero) and the safety gate still run.
+        self.fast_mode = fast_mode
         self.state = State.IDENTIFY
         self.extract = CallExtract(
             patient_id=patient.patient_id,
@@ -74,6 +79,11 @@ class Supervisor:
             post_op_day=patient.post_op_day,
         )
         self._history: List[Message] = []
+        # True after we've emitted a read-back and are waiting for the patient to
+        # confirm. While set, the NEXT turn is a confirmation, not a fresh answer,
+        # so it must NOT advance the state machine (that desync was closing calls
+        # early). We re-ask the current state's question and clear the flag.
+        self._awaiting_readback = False
 
     # ---- helpers ----
 
@@ -131,11 +141,33 @@ class Supervisor:
         The emergency screen runs UPSTREAM of this (in the pipeline loop); by the
         time we're here, it's not a 911 situation.
         """
+        # 0) If we're awaiting a read-back confirmation, this turn is that
+        #    confirmation — NOT a fresh answer. Do not advance the state machine
+        #    (doing so desynced the flow and closed calls early). Instead, resume
+        #    by re-asking the CURRENT state's question so the patient can answer
+        #    it properly this time.
+        if self._awaiting_readback:
+            self._awaiting_readback = False
+            low = patient_text.lower()
+            confirmed = any(w in low for w in ("yes", "yeah", "correct", "right", "yep", "that's it"))
+            _trace.line("SUPERVISOR", f"read-back {'confirmed' if confirmed else 'not confirmed'} "
+                        "-> re-ask current question (no advance)", _trace.YELLOW)
+            # Re-ask the current question, but for GREET use a short nudge rather
+            # than replaying the whole personalized greeting.
+            if self.state == State.GREET:
+                reask = "Thanks. So, how have you been feeling since your surgery?"
+            else:
+                reask = self._fill(STATE_PROMPTS.get(self.state, STATE_PROMPTS[State.CHECKIN]))
+            v = safety_gate.check(reask, append_safety_net=False)
+            return SupervisorTurn(reply=v.text, state=self.state, fields=self.extract.to_dict())
+
         # 1) Negative-confirmation: if GER flagged a low-confidence,
-        #    safety-critical transcript, we DO NOT act on it. Read back instead.
+        #    safety-critical transcript, we DO NOT act on it. Read back instead,
+        #    and remember we're now awaiting confirmation.
         if ger_needs_readback and readback_prompt:
             _trace.line("SUPERVISOR", "low-confidence safety-critical -> read-back (no action)",
                         _trace.YELLOW)
+            self._awaiting_readback = True
             v = safety_gate.check(readback_prompt, append_safety_net=False)
             return SupervisorTurn(reply=v.text, state=self.state, fields={})
 
@@ -210,6 +242,13 @@ class Supervisor:
         if template is None:
             return self._fill(STATE_PROMPTS[State.CLOSE])
         base = self._fill(template)
+
+        # Fast path (phone): skip the tone-shaping LLM round-trip and speak the
+        # already-warm template directly. Saves ~1-2s/turn. The template content
+        # is fixed and safe; MEDS just asks about adherence (doses are only
+        # recited on the inbound Q&A path, verbatim from Layer 1).
+        if self.fast_mode:
+            return base
 
         # For MEDS, inject the verbatim instructions the model MUST quote.
         verbatim_block = ""
