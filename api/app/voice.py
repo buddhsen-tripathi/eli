@@ -204,7 +204,10 @@ async def call_stream(twilio_ws: WebSocket):
             _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in pending:
                 task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
+            # Gather ALL tasks (not just pending) so the finished task's exception —
+            # e.g. a benign ConnectionClosedOK from a last send on hangup — is
+            # retrieved rather than logged as "Task exception was never retrieved".
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     except WebSocketDisconnect:
         pass
