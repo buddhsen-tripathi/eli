@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ── arya · refined medical-editorial system ─────────────────────────────────
+   Warm paper, humane serif headings, clinical mono for data, calm sage primary,
+   sharp triage semantics. Light + dark. */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --paper: #f6f3ec; /* warm paper background */
+  --card: #fffdf9; /* surface */
+  --line: #e6e0d4; /* hairline border */
+  --ink: #211d17; /* primary text, warm near-black */
+  --muted: #746c5e; /* secondary text */
+  --faint: #a89f8e; /* tertiary / placeholders */
+  --sage: #3f6b5f; /* primary — calm clinical teal-green */
+  --sage-ink: #2b4a41; /* darker sage for text on tint */
+  --sage-soft: #e7efe9; /* sage tint fill */
+  --shadow: 26 22 15;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #16140f;
+    --card: #1e1b15;
+    --line: #322d24;
+    --ink: #f1ece1;
+    --muted: #a79f8f;
+    --faint: #6f6757;
+    --sage: #8fc4b2;
+    --sage-ink: #b9dccf;
+    --sage-soft: #1e2b26;
+    --shadow: 0 0 0;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-sage: var(--sage);
+  --color-sage-ink: var(--sage-ink);
+  --color-sage-soft: var(--sage-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--paper);
+  /* faint warm atmosphere: two soft light sources + a paper grain */
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, color-mix(in oklab, var(--sage) 8%, transparent), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 110%, color-mix(in oklab, var(--sage) 6%, transparent), transparent 55%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Editorial serif for display headings */
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+}
+
+/* Staggered page-load reveal */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+* {
+  border-color: var(--line);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--sage) 28%, transparent);
 }

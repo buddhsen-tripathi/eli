@@ -12,7 +12,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 ${className}`}
+      className={`rounded-2xl border border-line bg-card shadow-[0_1px_2px_rgb(var(--shadow)/0.04),0_8px_24px_-12px_rgb(var(--shadow)/0.10)] ${className}`}
     >
       {children}
     </div>
@@ -21,17 +21,26 @@ export function Card({
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+    <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-faint">
       {children}
     </h2>
   );
 }
 
-export function TriageBadge({ triage }: { triage: Triage | null }) {
+export function TriageBadge({
+  triage,
+  size = "sm",
+}: {
+  triage: Triage | null;
+  size?: "sm" | "lg";
+}) {
+  const pad = size === "lg" ? "px-3 py-1 text-sm" : "px-2.5 py-0.5 text-xs";
   if (!triage) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-medium text-neutral-500 dark:border-neutral-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full border border-line text-faint ${pad}`}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-faint" />
         No triage
       </span>
     );
@@ -39,7 +48,7 @@ export function TriageBadge({ triage }: { triage: Triage | null }) {
   const m = TRIAGE_META[triage.level as TriageLevel] ?? TRIAGE_META.monitor;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${m.bg} ${m.text} ${m.border}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border font-medium ${m.bg} ${m.text} ${m.border} ${pad}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
       {m.label}
@@ -64,18 +73,18 @@ export function Button({
 }) {
   const styles = {
     primary:
-      "bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200",
+      "bg-sage text-white hover:brightness-110 shadow-sm",
     ghost:
-      "border border-neutral-200 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-900",
+      "border border-line bg-transparent text-ink hover:bg-sage-soft/60",
     danger:
-      "border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40",
+      "border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40",
   }[variant];
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${styles} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${styles} ${className}`}
     >
       {children}
     </button>
@@ -101,7 +110,7 @@ export function Input({
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-800 dark:focus:border-neutral-600 ${className}`}
+      className={`w-full rounded-xl border border-line bg-paper/50 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-sage focus:bg-card focus:ring-2 focus:ring-sage/15 ${className}`}
     />
   );
 }

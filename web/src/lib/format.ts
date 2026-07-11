@@ -9,6 +9,12 @@ export function recoveryDay(surgeryDate: string | null): number | null {
   return diff >= 0 ? diff : null;
 }
 
+/** Strip ElevenLabs audio/emotion tags like "[Concerned]" or "[Patient]" that
+ *  leak into agent transcript text. */
+export function cleanTranscript(text: string): string {
+  return text.replace(/\[[A-Za-z][A-Za-z ]{0,24}\]\s*/g, "").trim();
+}
+
 export function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, {
