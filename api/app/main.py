@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.calls import router as calls_router
 from app.caregivers import router as caregivers_router
+from app.medications import router as medications_router
 from app.outbound import router as outbound_router
 from app.patients import router as patients_router
 from app.voice import router as voice_router
@@ -34,6 +35,7 @@ app.include_router(outbound_router)
 app.include_router(calls_router)
 app.include_router(patients_router)
 app.include_router(caregivers_router)
+app.include_router(medications_router)
 
 
 @app.get("/health")
