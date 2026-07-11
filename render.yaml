@@ -11,7 +11,7 @@ services:
     # Free instances sleep after ~15 min idle → the first Twilio webhook after a
     # sleep can time out. Use "starter" (or keep-alive) for live calls.
     plan: starter
-    buildCommand: pip install -e .
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:

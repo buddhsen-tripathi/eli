@@ -29,7 +29,9 @@ Uses `render.yaml` (Blueprint). Root dir `api`, Python 3.13 (`api/.python-versio
    Verify: `GET /health` → `{"status":"ok"}`.
 4. Set `PUBLIC_BASE_URL` = that URL (no trailing slash) → triggers a redeploy.
 
-- Build: `pip install -e .` · Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Build: `pip install -r requirements.txt` · Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+  - `requirements.txt` is generated from the uv lockfile. Regenerate after changing deps:
+    `cd api && uv export --no-dev --no-hashes --no-emit-project -o requirements.txt`
 - WebSockets (the Twilio ↔ ElevenLabs bridge at `/call/stream`) work on Render web
   services. **Use the `starter` plan, not free** — free instances sleep after ~15 min
   idle and the first Twilio webhook after a sleep will time out mid-call.
