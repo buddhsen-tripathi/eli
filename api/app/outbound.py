@@ -47,6 +47,35 @@ async def _place_call(to: str, from_number: str, connected_url: str) -> str:
     return await asyncio.to_thread(_place_call_sync, to, from_number, connected_url)
 
 
+@router.post("")
+async def demo_checkin(db: AsyncSession = Depends(get_db)):
+    """Demo/smoke test: create a patient from DESTINATION_PHONE_NUMBER and dial it.
+
+    Lets us place a real check-in call without pre-seeding the DB — the number is
+    read from the server env, never sent over the wire.
+    """
+    to = os.environ.get("DESTINATION_PHONE_NUMBER")
+    if not to:
+        raise HTTPException(status_code=400, detail="DESTINATION_PHONE_NUMBER not set")
+
+    patient = Patient(name="Demo Patient", phone=to, procedure="knee replacement surgery")
+    db.add(patient)
+    await db.commit()
+    await db.refresh(patient)
+
+    base_url = os.environ["PUBLIC_BASE_URL"].rstrip("/")
+    from_number = os.environ["TWILIO_PHONE_NUMBER"]
+    connected_url = f"{base_url}/call/incoming?patient_id={patient.id}"
+
+    try:
+        sid = await _place_call(to, from_number, connected_url)
+    except httpx.HTTPStatusError as e:
+        # Surface Twilio's error body (e.g. unverified number, geo perms) verbatim.
+        raise HTTPException(status_code=502, detail=f"Twilio error: {e.response.text}")
+
+    return {"call_sid": sid, "patient_id": patient.id, "to": to, "status": "dialing"}
+
+
 @router.post("/{patient_id}")
 async def start_checkin(patient_id: str, db: AsyncSession = Depends(get_db)):
     """Dial a patient and hand the answered call to the voice bridge."""
