@@ -1,0 +1,13 @@
+anthropic==0.116.0
+cartesia==3.3.0
+deepgram-sdk==3.11.0
+fastapi==0.115.2
+httpx==0.28.1
+pydantic-settings==2.14.2
+pydantic==2.13.4
+python-dotenv==1.2.2
+python-multipart==0.0.32
+soundfile==0.14.0
+starlette==0.39.2
+twilio==9.10.9
+uvicorn==0.51.0
