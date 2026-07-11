@@ -78,8 +78,11 @@ _FALL = re.compile(
     re.I,
 )
 _CONFUSION = re.compile(
-    r"\b(confused|can'?t\s+remember\s+(if|whether|what\s+day)|what\s+day\s+is\s+it"
-    r"|don'?t\s+know\s+where\s+i\s+am|feel\s+(foggy|muddled|mixed\s+up))\b",
+    r"\b(confused|can'?t\s+remember\s+(if|whether|what\s+day)"
+    r"|(don'?t|do\s+not)\s+know\s+what\s+day"      # "don't know what day it is"
+    r"|what\s+day\s+is\s+it"
+    r"|(don'?t|do\s+not)\s+know\s+where\s+i\s+am"
+    r"|feel\s+(foggy|muddled|mixed\s+up)|foggy|muddled)\b",
     re.I,
 )
 
@@ -147,8 +150,19 @@ def detect(
     if _FALL.search(t):
         flags.append(RedFlag("fall", "Patient reported a fall or near-fall.", Route.NURSE, clinical=True))
     if _CONFUSION.search(t):
-        flags.append(RedFlag("confusion", "Possible confusion/delirium signal — nurse assessment.",
-                             Route.NURSE, clinical=True))
+        # "confused about which pills/instructions" is medication confusion, not
+        # delirium — don't raise the delirium flag for it (it's already caught as
+        # med_confusion above). But bare "confused" or any disorientation cue
+        # (foggy/muddled/what day is it/where am I) still fires delirium: we do
+        # NOT weaken real delirium detection.
+        med_scoped = re.search(
+            r"confused\s+(about|on|by|with|over)\s+.{0,30}"
+            r"(pill|medicine|medication|dose|instruction|paper|sheet|schedule)", t, re.I)
+        disorientation = re.search(
+            r"foggy|muddled|mixed\s+up|what\s+day|where\s+i\s+am|can'?t\s+remember", t, re.I)
+        if not (med_scoped and not disorientation):
+            flags.append(RedFlag("confusion", "Possible confusion/delirium signal — nurse assessment.",
+                                 Route.NURSE, clinical=True))
 
     if pain is not None and pain >= pain_threshold:
         flags.append(RedFlag("uncontrolled_pain",

@@ -67,20 +67,19 @@ STATE_PROMPTS = {
         "the line, let's do your quick check-in. How have you been feeling?"
     ),
     State.CHECKIN: (
-        "Thanks for telling me. Just one thing at a time — right now, what's "
-        "your pain like on a scale of zero to ten?"
+        "Just one thing at a time — right now, what's your pain like on a scale "
+        "of zero to ten?"
     ),
     State.MEDS: (
-        "Good to know. How about your medicines — have they been easy to keep "
-        "up with, or has anything been confusing?"
+        "How about your medicines — have they been easy to keep up with?"
     ),
     State.WOUND: (
-        "Okay. Let's take a quick look at your incision. Have you noticed any "
-        "redness spreading, or any fluid or warmth around it?"
+        "Let's take a quick look at your incision. Have you noticed any redness "
+        "spreading, or any fluid or warmth around it?"
     ),
     State.SCREEN: (
-        "Almost done. Since we last talked, have you had any falls or "
-        "close calls with your balance?"
+        "Almost done. Since we last talked, have you had any falls or close "
+        "calls with your balance?"
     ),
     State.CLOSE: (
         "That's everything I needed, {name} — thank you. I've passed your notes "

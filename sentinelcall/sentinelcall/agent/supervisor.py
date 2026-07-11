@@ -189,6 +189,14 @@ class Supervisor:
         #    bounded), quoting verbatim doses when in MEDS.
         nxt = next_state(self.state)
         reply = self._compose_reply(nxt, patient_text)
+        # In fast_mode the template is spoken as-is, so it wouldn't ACKNOWLEDGE
+        # what the patient just said. Prepend a short, rule-based, reinforcing
+        # acknowledgment (no LLM call) so the agent feels responsive and warm —
+        # reassuring on hard news, affirming on good news — before the next probe.
+        if self.fast_mode:
+            ack = self._acknowledge(patient_text, pain=pain, prev_state=self.state)
+            if ack:
+                reply = f"{ack} {reply}"
         self.state = nxt
         ended = nxt == State.CLOSE
         grounding = self._grounding_for_state(nxt)
@@ -231,6 +239,40 @@ class Supervisor:
             reply=v.text, state=self.state, escalate=True, escalation=flags,
             fields=self.extract.to_dict(),
         )
+
+    # ---- reinforcing acknowledgment (rule-based, no LLM, no latency) ----
+
+    def _acknowledge(self, text: str, *, pain: Optional[int], prev_state: State) -> str:
+        """A short, warm, human acknowledgment of what the patient just said,
+        chosen by rule so it adds no latency. Adaptive tone: reassuring when they
+        sound worried or report worse, affirming/reinforcing when things are
+        going well. Never clinical, never a diagnosis, never 'you're fine'."""
+        low = text.lower()
+
+        # Emotional cues take priority — meet the feeling first.
+        if any(w in low for w in ("scared", "worried", "afraid", "anxious", "nervous", "frightened")):
+            return "That's completely understandable, and I'm glad you told me."
+        if any(w in low for w in ("lonely", "alone", "sad", "down", "depressed")):
+            return "I'm really glad you picked up — you're not on your own in this."
+        if any(w in low for w in ("confused", "don't understand", "dont understand", "not sure what", "mixed up")):
+            return "No problem at all, we'll take it slowly together."
+        if any(w in low for w in ("tired", "exhausted", "worn out", "no energy")):
+            return "That's very normal at this stage — rest is part of healing."
+
+        # Reinforce good news (affirmation encourages adherence).
+        if any(w in low for w in ("good", "great", "better", "fine", "okay", "well", "alright", "pretty good", "no problem")):
+            return "That's really good to hear."
+        if any(w in low for w in ("yes", "yeah", "taking them", "on schedule", "kept up", "every day")) and prev_state == State.MEDS:
+            return "That's excellent — staying on your medicines really helps."
+
+        # Report of worsening / discomfort — reassure without alarming or diagnosing.
+        if isinstance(pain, int) and pain >= 6:
+            return "I'm sorry you're that sore — thank you for being honest with me."
+        if any(w in low for w in ("worse", "hurts", "sore", "painful", "not good", "bad", "struggling", "hard time")):
+            return "Thank you for telling me — I want to make sure we look after that."
+
+        # Neutral default: acknowledge and keep momentum.
+        return "Okay, thank you."
 
     # ---- reply composition (bounded LLM for tone only) ----
 
