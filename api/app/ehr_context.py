@@ -52,12 +52,16 @@ def _format_medications(meds: list[Medication]) -> str:
 
 
 async def build_dynamic_variables(
-    patient_id: str | None, direction: str = "outbound"
+    patient_id: str | None,
+    direction: str = "outbound",
+    day_override: str | None = None,
 ) -> dict[str, str]:
     """Return the EHR-derived dynamic variables for a call. Safe with no patient.
 
     ``direction`` ("inbound"/"outbound") lets the agent switch between running a
     check-in (outbound) and answering the patient's questions (inbound).
+    ``day_override`` forces the recovery day the agent is told (else it's computed
+    from the surgery date) — used to demo a specific post-op day.
     """
     now = _local_now()
     variables = {
@@ -86,4 +90,8 @@ async def build_dynamic_variables(
         variables["recovery_day"] = _recovery_day(p.surgery_date)
         variables["ehr_notes"] = p.notes or ""
         variables["medications"] = _format_medications(list(p.medications))
+
+    # Explicit override wins over the computed day (demo convenience).
+    if day_override not in (None, ""):
+        variables["recovery_day"] = str(day_override)
     return variables

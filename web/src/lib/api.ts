@@ -133,9 +133,11 @@ export const api = {
   getTurns: (id: string) => get<TranscriptTurn[]>(`/api/calls/${id}/turns`),
   rerunCall: (id: string) => post<{ triage: Triage }>(`/api/calls/${id}/rerun`),
 
-  // place a check-in call to a specific patient
-  startCheckin: (patientId: string) =>
-    post<{ call_sid: string; status: string }>(`/call/outbound/${patientId}`),
+  // place a check-in call to a specific patient (optional day overrides recovery day)
+  startCheckin: (patientId: string, day?: number) =>
+    post<{ call_sid: string; status: string }>(
+      `/call/outbound/${patientId}${day != null ? `?day=${day}` : ""}`,
+    ),
   // demo: dial DESTINATION_PHONE_NUMBER configured on the backend
   triggerDemoCall: () =>
     post<{ call_sid: string; to: string; status: string }>("/call/outbound"),

@@ -65,11 +65,16 @@ def _elevenlabs_ws_url() -> str:
 
 
 def _twiml_stream(
-    public_ws_url: str, patient_id: str | None = None, direction: str = "inbound"
+    public_ws_url: str,
+    patient_id: str | None = None,
+    direction: str = "inbound",
+    day: str | None = None,
 ) -> str:
     params = f'<Parameter name="direction" value="{direction}"/>'
     if patient_id:
         params += f'<Parameter name="patient_id" value="{patient_id}"/>'
+    if day is not None:
+        params += f'<Parameter name="day" value="{day}"/>'
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
@@ -126,10 +131,12 @@ async def incoming_call(request: Request) -> PlainTextResponse:
             else:
                 print(f"[voice] inbound caller {from_number} not recognized", flush=True)
 
+    day = request.query_params.get("day")
     base_url = os.environ["PUBLIC_BASE_URL"].rstrip("/")
     ws_base = base_url.replace("https://", "wss://").replace("http://", "ws://")
     return PlainTextResponse(
-        content=_twiml_stream(ws_base, patient_id, direction), media_type="application/xml"
+        content=_twiml_stream(ws_base, patient_id, direction, day),
+        media_type="application/xml",
     )
 
 
@@ -142,6 +149,7 @@ async def call_stream(twilio_ws: WebSocket):
     call_id: str | None = None
     patient_id: str | None = None
     direction: str = "inbound"
+    day_override: str | None = None
     el_conversation_id: str | None = None
     pre_start_media: list[str] = []  # Twilio media (mu-law b64) arriving before 'start'
 
@@ -160,6 +168,7 @@ async def call_stream(twilio_ws: WebSocket):
                 patient_id = params.get("patient_id")
                 # direction is set by /call/incoming (outbound = we dialed them).
                 direction = params.get("direction") or ("outbound" if patient_id else "inbound")
+                day_override = params.get("day")
                 break
             elif event == "media":
                 pre_start_media.append(msg["media"]["payload"])
@@ -185,7 +194,7 @@ async def call_stream(twilio_ws: WebSocket):
 
     from app.ehr_context import build_dynamic_variables
 
-    dynamic_variables = await build_dynamic_variables(patient_id, direction)
+    dynamic_variables = await build_dynamic_variables(patient_id, direction, day_override)
     print(
         f"[twilio] start: call_id={call_id} sid={call_sid} patient_id={patient_id} "
         f"direction={direction} agent_name={dynamic_variables['patient_name']!r} "

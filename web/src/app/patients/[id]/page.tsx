@@ -126,18 +126,21 @@ function PatientHeader({ patient, onSaved }: { patient: PatientDetail; onSaved: 
           {patient.phone} · edit
         </button>
       </div>
-      <CheckinButton patientId={patient.id} />
+      <CheckinButton patientId={patient.id} defaultDay={day} />
     </div>
   );
 }
 
-function CheckinButton({ patientId }: { patientId: string }) {
+function CheckinButton({ patientId, defaultDay }: { patientId: string; defaultDay: number | null }) {
   const [state, setState] = useState<"idle" | "calling" | "ok" | "error">("idle");
   const [msg, setMsg] = useState("");
+  const [day, setDay] = useState<string>(defaultDay != null ? String(defaultDay) : "");
+
   async function call() {
     setState("calling");
     try {
-      await api.startCheckin(patientId);
+      const d = day.trim() === "" ? undefined : Number(day);
+      await api.startCheckin(patientId, Number.isFinite(d) ? d : undefined);
       setState("ok");
       setMsg("Calling now — the phone should ring.");
     } catch (e) {
@@ -147,11 +150,23 @@ function CheckinButton({ patientId }: { patientId: string }) {
   }
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <Button onClick={call} disabled={state === "calling"}>
-        {state === "calling" ? "Dialing…" : "📞 Start check-in call"}
-      </Button>
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-2 text-sm">
+          <span className="text-muted-foreground">Day</span>
+          <input
+            type="number"
+            min={0}
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+            className="w-12 bg-transparent text-center font-medium text-foreground outline-none"
+          />
+        </label>
+        <Button onClick={call} disabled={state === "calling"}>
+          {state === "calling" ? "Dialing…" : "📞 Start check-in call"}
+        </Button>
+      </div>
       {msg && (
-        <p className={`text-xs ${state === "error" ? "text-red-600 dark:text-red-400" : "text-sage-ink"}`}>
+        <p className={`text-xs ${state === "error" ? "text-red-600 dark:text-red-400" : "text-primary"}`}>
           {msg}
         </p>
       )}

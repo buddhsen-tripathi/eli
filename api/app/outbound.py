@@ -77,8 +77,14 @@ async def demo_checkin(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{patient_id}")
-async def start_checkin(patient_id: str, db: AsyncSession = Depends(get_db)):
-    """Dial a patient and hand the answered call to the voice bridge."""
+async def start_checkin(
+    patient_id: str, day: int | None = None, db: AsyncSession = Depends(get_db)
+):
+    """Dial a patient and hand the answered call to the voice bridge.
+
+    Optional ``day`` overrides the recovery day the agent is told (otherwise it's
+    computed from the surgery date) — handy for demoing a specific post-op day.
+    """
     patient = await db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="patient not found")
@@ -87,6 +93,8 @@ async def start_checkin(patient_id: str, db: AsyncSession = Depends(get_db)):
     from_number = os.environ["TWILIO_PHONE_NUMBER"]
     # Pass patient_id so the bridge can link the call and notify the right loved ones.
     connected_url = f"{base_url}/call/incoming?patient_id={patient_id}"
+    if day is not None:
+        connected_url += f"&day={day}"
 
     sid = await _place_call(patient.phone, from_number, connected_url)
-    return {"call_sid": sid, "patient_id": patient_id, "status": "dialing"}
+    return {"call_sid": sid, "patient_id": patient_id, "day": day, "status": "dialing"}
