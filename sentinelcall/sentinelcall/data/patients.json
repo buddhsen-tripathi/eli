@@ -1,0 +1,135 @@
+{
+  "patients": [
+    {
+      "patient_id": "P001",
+      "name": "Eleanor Whitfield",
+      "preferred_name": "Eleanor",
+      "phone": "+19293058774",
+      "age": 74,
+      "surgery": "Total knee replacement (right knee)",
+      "surgery_date": "2026-07-06",
+      "post_op_day": 5,
+      "surgeon": "Dr. Patel",
+      "caregiver": {
+        "name": "Susan (daughter)",
+        "phone": "+15551239001"
+      },
+      "prescribed": {
+        "medications": [
+          {
+            "name": "Acetaminophen",
+            "verbatim_instruction": "Take 500 milligrams by mouth every 6 hours as needed for pain. Do not take more than 3000 milligrams in 24 hours.",
+            "max_per_day_mg": 3000
+          },
+          {
+            "name": "Oxycodone",
+            "verbatim_instruction": "Take 5 milligrams by mouth every 6 hours as needed for severe pain. Do not drive while taking this.",
+            "max_per_day_mg": 20
+          },
+          {
+            "name": "Enoxaparin",
+            "verbatim_instruction": "Inject 40 milligrams under the skin once daily to prevent blood clots for 14 days after surgery.",
+            "max_per_day_mg": 40
+          }
+        ],
+        "wound_care": "Keep the dressing clean and dry. Change the outer gauze once a day. Do not soak the knee in a bath until your follow-up visit.",
+        "activity": "Use your walker for all walking. Do your knee-bending exercises three times a day. Ice for 20 minutes after exercises.",
+        "follow_up": {
+          "provider": "Dr. Patel",
+          "date": "2026-07-16",
+          "type": "post-op check"
+        },
+        "red_flag_thresholds": {
+          "fever_f": 100.4,
+          "pain_scale_uncontrolled": 8,
+          "calf_swelling_or_pain": "possible blood clot \u2014 clinical review",
+          "wound": "spreading redness beyond 2 cm, pus/foul drainage, or wound opening"
+        }
+      }
+    },
+    {
+      "patient_id": "P002",
+      "name": "Harold Nguyen",
+      "preferred_name": "Harold",
+      "phone": "+15551230002",
+      "age": 81,
+      "surgery": "Total hip replacement (left hip)",
+      "surgery_date": "2026-07-09",
+      "post_op_day": 2,
+      "surgeon": "Dr. Alvarez",
+      "caregiver": {
+        "name": "Linh (wife)",
+        "phone": "+15551239002"
+      },
+      "prescribed": {
+        "medications": [
+          {
+            "name": "Acetaminophen",
+            "verbatim_instruction": "Take 650 milligrams by mouth every 8 hours for pain. Do not exceed 3000 milligrams in 24 hours.",
+            "max_per_day_mg": 3000
+          },
+          {
+            "name": "Aspirin",
+            "verbatim_instruction": "Take 81 milligrams by mouth twice daily to prevent blood clots for 30 days.",
+            "max_per_day_mg": 162
+          }
+        ],
+        "wound_care": "Leave the surgical glue and strips in place. Keep the area dry for 48 hours. It is normal to see a small amount of clear or pink fluid on day 1 and 2. Follow your hip precautions: do not bend the hip past 90 degrees.",
+        "activity": "Bear weight as tolerated with the walker. Do not cross your legs. Elevate the leg when resting. Ankle pumps every hour while awake.",
+        "follow_up": {
+          "provider": "Dr. Alvarez",
+          "date": "2026-07-20",
+          "type": "wound check"
+        },
+        "red_flag_thresholds": {
+          "fever_f": 100.4,
+          "pain_scale_uncontrolled": 8,
+          "calf_swelling_or_pain": "possible blood clot \u2014 clinical review",
+          "wound": "spreading redness, pus, or increasing warmth"
+        }
+      }
+    },
+    {
+      "patient_id": "P003",
+      "name": "Doris Kaminski",
+      "preferred_name": "Doris",
+      "phone": "+15551230003",
+      "age": 78,
+      "surgery": "Total knee replacement (left knee)",
+      "surgery_date": "2026-07-02",
+      "post_op_day": 9,
+      "surgeon": "Dr. Patel",
+      "caregiver": {
+        "name": "Robert (son)",
+        "phone": "+15551239003"
+      },
+      "prescribed": {
+        "medications": [
+          {
+            "name": "Acetaminophen",
+            "verbatim_instruction": "Take 500 milligrams by mouth every 6 hours as needed for pain. Do not take more than 3000 milligrams in 24 hours.",
+            "max_per_day_mg": 3000
+          },
+          {
+            "name": "Enoxaparin",
+            "verbatim_instruction": "Inject 40 milligrams under the skin once daily to prevent blood clots for 14 days after surgery.",
+            "max_per_day_mg": 40
+          }
+        ],
+        "wound_care": "Incision may be closed with staples. Keep it clean and dry. Some mild itching as it heals is normal. Staples come out at your follow-up.",
+        "activity": "Advance to a cane as balance allows. Continue physical therapy exercises. Short walks are encouraged.",
+        "follow_up": {
+          "provider": "Dr. Patel",
+          "date": "2026-07-14",
+          "type": "staple removal"
+        },
+        "red_flag_thresholds": {
+          "fever_f": 100.4,
+          "pain_scale_uncontrolled": 8,
+          "calf_swelling_or_pain": "possible blood clot \u2014 clinical review",
+          "wound": "spreading redness, pus/foul drainage, or wound opening"
+        }
+      }
+    }
+  ]
+}

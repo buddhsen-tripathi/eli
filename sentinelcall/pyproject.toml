@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinelcall"
+version = "0.1.0"
+description = "Accessibility-first post-op voice agent (Twilio + Claude) with live speech recovery (GER)."
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2",
+    "pydantic-settings",
+    "python-dotenv",
+    "anthropic",
+    "deepgram-sdk>=3,<4",
+    "cartesia",
+    "soundfile",
+    "httpx",
+    "twilio",
+    "fastapi>=0.110,<0.116",
+    "starlette<0.40",
+    "python-multipart",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+# Local audio playback in the simulator (optional; simulator works without it).
+audio = ["sounddevice"]
+
+[project.scripts]
+sentinel = "sentinelcall.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["sentinelcall*"]
+
+[tool.setuptools.package-data]
+sentinelcall = ["data/*.json", "data/*.md", "telephony/*.html"]

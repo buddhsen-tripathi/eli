@@ -1,0 +1,53 @@
+# Render Blueprint for the SentinelCall backend (this subfolder).
+#
+# NOTE: the repo ROOT already has a render.yaml for the `arya-api` service
+# (rootDir: api). Render Blueprints read the root file, so to deploy THIS
+# service either:
+#   (a) create the service manually in the Render dashboard with rootDir
+#       "sentinelcall" and the build/start commands below, or
+#   (b) merge this service entry into the root render.yaml.
+#
+# Fill in the secret env vars (sync:false) in the Render dashboard after import.
+services:
+  - type: web
+    name: sentinelcall
+    runtime: python
+    rootDir: sentinelcall
+    # Free instances sleep after ~15 min idle -> the first Twilio webhook after a
+    # sleep can time out mid-call. Use "starter" for live demo calls.
+    plan: starter
+    buildCommand: pip install -e .
+    # build_app() is a FACTORY (returns the FastAPI app), so --factory is required.
+    startCommand: uvicorn sentinelcall.telephony.twilio_voice:build_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SUPERVISOR_MODEL
+        value: claude-sonnet-4-6
+      - key: GER_MODEL
+        value: claude-sonnet-4-6
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: DEEPGRAM_MODEL
+        value: enhanced
+      - key: STT_ALTERNATIVES
+        value: "4"
+      - key: CARTESIA_API_KEY
+        sync: false
+      - key: CARTESIA_VOICE
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: NURSE_SMS_NUMBER
+        sync: false
+      - key: VOLUNTEER_SMS_NUMBER
+        sync: false
+      # Set AFTER the first deploy, to this service's public URL
+      # (e.g. https://sentinelcall.onrender.com). No trailing slash.
+      - key: PUBLIC_BASE_URL
+        sync: false
